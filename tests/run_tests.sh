@@ -11,6 +11,10 @@ NO_COLOR=1; export NO_COLOR
 . "$ROOT/bin/lib/common.sh"
 # shellcheck source=../bin/lib/catalog.sh
 . "$ROOT/bin/lib/catalog.sh"
+# shellcheck source=../bin/lib/image.sh
+. "$ROOT/bin/lib/image.sh"
+# shellcheck source=../bin/lib/instance.sh
+. "$ROOT/bin/lib/instance.sh"
 
 PASS=0; FAIL=0
 
@@ -137,6 +141,28 @@ assert_false "below floor"     catalog_resolve 8.0.2
 assert_false "unknown line"    catalog_resolve 99
 assert_false "garbage"         catalog_resolve "not-a-version"
 assert_false "empty"           catalog_resolve ""
+
+# ------------------------------------------------------------- build inputs --
+section "era_puppeteer (upstream pins, RESEARCH §6)"
+assert_eq "dss11-12" 13.7.0  "$(era_puppeteer dss11-12)"
+assert_eq "dss13"    23.11.1 "$(era_puppeteer dss13)"
+assert_eq "dss14-15" 24.8.2  "$(era_puppeteer dss14-15)"
+assert_false "unknown era rejected" era_puppeteer nope
+
+section "kit_url"
+assert_eq "12.3.1" \
+  "https://cdn.downloads.dataiku.com/public/studio/12.3.1/dataiku-dss-12.3.1.tar.gz" \
+  "$(kit_url 12.3.1)"
+
+section "image_ref follows catalog_source"
+assert_eq "12.6.4 is on Hub"   "dataiku/dss:12.6.4"        "$(image_ref 12.6.4)"
+assert_eq "12.3.1 is built"    "dss-mac-docker/dss:12.3.1" "$(image_ref 12.3.1)"
+
+section "every era base is a real, pullable Hub tag"
+for era in dss11-12 dss13 dss14-15; do
+    tag="$(era_base_image "$era")"; tag="${tag##*:}"
+    assert_true "$tag published" catalog_hub_tags_has "$tag"
+done
 
 # ------------------------------------------------------- licence containment --
 # A leaked licence file is the worst thing this repo could commit, and the

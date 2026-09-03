@@ -20,6 +20,10 @@ LIB_DIR="$(cd -P "$(dirname "$_self")/lib" && pwd)"
 . "$LIB_DIR/catalog.sh"
 # shellcheck source=bin/lib/doctor.sh
 . "$LIB_DIR/doctor.sh"
+# shellcheck source=bin/lib/image.sh
+. "$LIB_DIR/image.sh"
+# shellcheck source=bin/lib/instance.sh
+. "$LIB_DIR/instance.sh"
 
 usage() {
     cat <<'__HELP__'
@@ -42,10 +46,23 @@ READY
       --source pull|build  Only versions obtained that way
       --refresh            Re-scrape downloads.dataiku.com and Docker Hub
 
-PLANNED (phase 2+)
-    up <spec>              Create or start the container for a version
-    ls | stop | logs | shell | url | rm | gc
-    build <spec> | snapshot | restore | upgrade
+LIFECYCLE
+    up <spec> [opts]       Create or start the container for a version.
+                           Idempotent: an existing container is simply started.
+      --migrate            Accept an IRREVERSIBLE datadir migration
+      --no-wait            Return without waiting for DSS to answer
+      --timeout N          Readiness timeout, seconds (default 1800)
+    ls                     All dss-lab containers, from Docker labels
+    stop <spec>            Stop a running instance
+    url <spec>             Print the instance URL
+    logs <spec> [-f]       Container logs
+    shell <spec>           Interactive shell in the container
+    rm <spec> [--keep-volume]   Remove container, and its datadir unless kept
+    gc                     Reclaim dangling images and build cache
+    build <spec>           Build an image for a version Hub does not publish
+
+PLANNED (phase 4+)
+    provision | license | apikey | register | snapshot | restore | upgrade
 
 SPECS
     latest    highest known version
@@ -105,7 +122,7 @@ cmd_catalog() {
 }
 
 cmd_not_yet() {
-    log_error "'$1' is not implemented yet (phase 2 — see docs/ROADMAP.md)"
+    log_error "'$1' is not implemented yet (phase 4+ — see docs/ROADMAP.md)"
     exit 1
 }
 
@@ -118,7 +135,16 @@ main() {
         resolve)  cmd_resolve "$@" ;;
         info)     cmd_info "$@" ;;
         versions) catalog_versions | version_sort | tail -r 2>/dev/null || catalog_versions | version_sort ;;
-        up|ls|stop|logs|shell|url|rm|gc|build|snapshot|restore|upgrade) cmd_not_yet "$cmd" ;;
+        up)       require_docker; local sp="$1"; shift; instance_up "$(catalog_resolve "$sp")" "$@" ;;
+        ls)       require_docker; instance_ls ;;
+        stop)     require_docker; instance_stop "$(catalog_resolve "$1")" ;;
+        url)      instance_url "$(catalog_resolve "$1")" ;;
+        logs)     require_docker; local sp="$1"; shift; instance_logs "$(catalog_resolve "$sp")" "$@" ;;
+        shell)    require_docker; instance_shell "$(catalog_resolve "$1")" ;;
+        rm)       require_docker; local sp="$1"; shift; instance_rm "$(catalog_resolve "$sp")" "${1:-}" ;;
+        gc)       require_docker; instance_gc ;;
+        build)    require_docker; local sp="$1"; shift; image_build "$(catalog_resolve "$sp")" "$@" ;;
+        provision|license|apikey|register|snapshot|restore|upgrade) cmd_not_yet "$cmd" ;;
         -h|--help|help) usage ;;
         *) log_error "unknown command: $cmd"; usage; exit 1 ;;
     esac

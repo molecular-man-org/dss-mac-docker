@@ -47,8 +47,12 @@ Also delivered: `dss-lab info <spec>` (everything derived from a version) and
 
 ## Phase 3 — All 109 versions
 
-- [ ] `docker/Dockerfile.dss11-12`, `.dss13`, `.dss14-15` — transcribed from the
-      upstream commits in RESEARCH §6, ARG moved below the expensive layers
+- [x] `docker/Dockerfile.kit` — **one** parameterised Dockerfile, not three.
+      Deriving from a Hub era base means the era only selects `BASE_IMAGE` and
+      `PUPPETEER_VERSION`, so per-era files are needed solely for a
+      from-scratch build. ARG is declared below the base, fixing RESEARCH §8.
+- [ ] `docker/Dockerfile.dss11-12`, `.dss13`, `.dss14-15` — only for
+      `--era-base scratch`; deferred until something actually needs it
 - [ ] `build <version>` with era detection and era-base resolution (DESIGN D3)
 - [ ] `--era-base scratch` clean-build option
 - [ ] Verified on a non-Hub version per era — suggest `12.6.7`, `13.5.7`, `14.7.3`

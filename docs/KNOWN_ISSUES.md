@@ -61,13 +61,15 @@ Only 14 of 109 in-range versions exist on Hub (RESEARCH §3). Anything that make
 building slow or unreliable hits ~87% of use. The two-stage build (DESIGN D3) is
 load-bearing, not an optimization.
 
-## K6. Symlinked skills — UNVERIFIED
+## K6. Skill installation — RESOLVED 2026-09-03
 
-`make install` symlinks skill directories into `~/.claude/skills/`. Whether
-Claude Code follows symlinks there has **not been tested**. Fall back to copying,
-with `make install` re-runnable, if it does not.
+Sidestepped rather than tested. `make install` **copies** each skill into
+`~/.claude/skills/` and substitutes the absolute CLI path into the `SKILL.md` as
+it goes, so nothing depends on whether Claude Code follows symlinks, and the path
+stays correct even if the repo moves.
 
-`~/.claude/skills/` does not exist yet on this machine; `make install` creates it.
+Cost: `make install` must be re-run after editing anything under `skills/`. The
+Makefile target says so, and it is idempotent.
 
 ## K7. Java 8 recipe against late 12.x — thinly evidenced
 

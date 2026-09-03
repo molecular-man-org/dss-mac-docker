@@ -91,8 +91,12 @@ Checked via `https://hub.docker.com/v2/repositories/dataiku/dss/tags/?page_size=
 > on it.
 
 Compressed image sizes grow sharply by era: 2.0.0 = 0.48 GB, 12.6.4 = 3.23 GB,
-14.4.0 = 4.19 GB, 15.0.0 = 4.07 GB. Expect roughly 2.2-2.5x on disk once
-unpacked.
+14.4.0 = 4.19 GB, 15.0.0 = 4.07 GB.
+
+**On-disk expansion measured 2026-09-03: 3.3x, not the 2.2-2.5x first
+estimated.** `dataiku/dss:14.7.0` is 3.92 GB compressed and **12.9 GB** on disk.
+So budget ~13 GB for a modern DSS image and ~11 GB for a 12.x one. On a ~60 GB
+VM disk that is four modern images at the outside, before any datadirs.
 
 ## 4. Installer kit URLs — both hosts work
 

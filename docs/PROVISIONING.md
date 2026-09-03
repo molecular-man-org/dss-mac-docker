@@ -45,6 +45,49 @@ The three fields the caller actually needs are **url**, **api_key** and
 **nickname** — they map onto `dataiku-headless`'s `DKU_DSS_URL`, `DKU_API_KEY`
 and `DKU_INSTANCE_NAME`.
 
+## Candidate commands (user-supplied, 2026-09-03) — VERIFY BEFORE USE
+
+Tim supplied this sketch, explicitly untested:
+
+```bash
+DSS_DATADIR="/home/dataiku/dss_data"
+cd "$DSS_DATADIR"
+./bin/dss start                                    # 1. start DSS if needed
+./bin/dsscli ... set-admin-password ...            # 2. exact cmd varies by version
+./bin/dssadmin ... set-license-file license.json   # 3. exact cmd varies by version
+# 4. admin API key, via CLI if supported else REST once login works
+```
+
+Three notes before anyone runs it:
+
+1. **The datadir path is different in our containers.** The official DSS image
+   sets `DSS_DATADIR=/home/dataiku/dss` (RESEARCH §7), not `/home/dataiku/dss_data`.
+   `dss_data` is the convention for a manual host install. Using it here fails.
+2. **Step 1 is unnecessary.** `run.sh` is the container's entrypoint and already
+   ends in `exec "$DSS_DATADIR"/bin/dss run`, so DSS is PID 1. Starting it again
+   inside a running container is wrong. What we need instead is a **restart**
+   after the licence lands, which is `docker restart <container>`.
+3. **Step 2 is a real gap in the earlier design.** Once a licence is active DSS
+   requires a login, so a known admin password is the fallback if the API-key
+   path fails. It was missing from this document until Tim raised it.
+
+`dssadmin set-license-file` is likely preferable to copying the file, because it
+should validate and reload rather than requiring a restart — but its existence
+and exact spelling are **unconfirmed for the versions in range**, and Tim notes
+they vary by version.
+
+**These are hypotheses.** The moment a container is running, enumerate the real
+surface rather than guessing:
+
+```bash
+docker exec <container> /home/dataiku/dss/bin/dsscli --help
+docker exec <container> /home/dataiku/dss/bin/dssadmin --help
+```
+
+Record the answers per era in `docs/findings/`. Command availability differing
+across DSS 11/12/13/14/15 is exactly the kind of thing that silently breaks
+provisioning for one line only.
+
 ## Step 3 — licence
 
 Verified mechanism: DSS reads its licence from `DATA_DIR/config/license.json`.
