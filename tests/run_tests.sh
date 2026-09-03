@@ -172,6 +172,19 @@ for v in 11.4.5 12.3.1 13.5.7 14.7.3 15.0.0; do
     assert_true "base $t is a real Hub tag" catalog_hub_tags_has "$t"
 done
 
+section "build_base_for falls back to the major base when nothing is local"
+# (image_present is false for these in a test env with no such images)
+# sh -c would lose the sourced functions, so call them directly
+for v in 13.5.7 14.7.3 11.4.5; do
+    b="$(build_base_for "$v")"
+    case "$b" in
+        dataiku/dss:*)
+            t="${b##*:}"
+            assert_true "base for $v ($b) is a real Hub tag" catalog_hub_tags_has "$t" ;;
+        *) bad "build_base_for $v returned '$b', not a Hub ref" ;;
+    esac
+done
+
 section "every era base is a real, pullable Hub tag"
 for era in dss11-12 dss13 dss14-15; do
     tag="$(era_base_image "$era")"; tag="${tag##*:}"

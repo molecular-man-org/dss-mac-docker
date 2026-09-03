@@ -105,7 +105,7 @@ cmd_info() {
         printf '%-14s %s\n' "image" "$(image_hub "$v")"
     else
         printf '%-14s %s\n' "image" "$(image_local "$v")"
-        printf '%-14s %s\n' "build base" "$(era_base_image "$(version_era "$v")")"
+        printf '%-14s %s\n' "build base" "$(build_base_for "$v")"
     fi
     version_port_is_canonical "$v" || \
         log_warn "minor/patch exceeds 9: port may collide, 'up' will fall back to a free port"
