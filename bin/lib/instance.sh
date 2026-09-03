@@ -73,14 +73,26 @@ image_ensure() {
 
 # ---------------------------------------------------------------- readiness --
 
+# Readiness is measured against the BACKEND, not nginx.
+#
+# nginx starts and serves the login page well before the DSS backend is
+# listening: measured on a 12.6.7 container, `GET /` returned 200 at t=50s while
+# the API still returned 502, and the backend only answered at t=60s. Anything
+# that talks to DSS in that window fails — `dsscli set-license` is a REST client
+# against the backend on :10001, not a filesystem operation, and it fails with
+# "connection refused". So probing `/` is a false positive.
+#
+# An API path proxied to the backend distinguishes them: 502/503/504 means nginx
+# is up but the backend is not; 401 means the backend answered and demanded
+# credentials, which is exactly the readiness signal we want.
+DSS_READY_PATH="/public/api/admin/licensing/status"
+
 # instance_wait <version> [timeout_seconds]
-# First boot runs installer.sh, R integration and graphics export, all emulated,
-# so the default timeout is deliberately long (KNOWN_ISSUES K2).
 instance_wait() {
-    local v="$1" timeout="${2:-1800}" port code waited=0 interval=5
+    local v="$1" timeout="${2:-1800}" port code waited=0 interval=5 saw_nginx=0
     port=$(container_recorded_port "$v"); [ -n "$port" ] || port=$(version_port "$v")
 
-    log_step "waiting for DSS on port $port (timeout ${timeout}s)"
+    log_step "waiting for the DSS backend on port $port (timeout ${timeout}s)"
     while [ "$waited" -lt "$timeout" ]; do
         if [ "$(instance_state "$v")" != "running" ]; then
             log_error "container stopped while starting up"
@@ -88,14 +100,22 @@ instance_wait() {
             docker logs --tail 20 "$(container_name "$v")" 2>&1 | sed 's/^/    /' >&2
             return 1
         fi
-        code=$(curl -sS -o /dev/null -m 5 -w '%{http_code}' "http://localhost:$port/" 2>/dev/null || printf '000')
+        code=$(curl -sS -o /dev/null -m 5 -w '%{http_code}' \
+                "http://localhost:$port$DSS_READY_PATH" 2>/dev/null || printf '000')
         case "$code" in
-            2??|3??|401|403) log_ok "DSS is up (HTTP $code) after ${waited}s"; return 0 ;;
+            200|401|403)
+                log_ok "DSS backend is ready (HTTP $code) after ${waited}s"; return 0 ;;
+            502|503|504)
+                if [ "$saw_nginx" -eq 0 ]; then
+                    saw_nginx=1
+                    log_dim "nginx is up; waiting for the backend (this is the slow part)"
+                fi ;;
         esac
         sleep "$interval"; waited=$((waited + interval))
         if [ $((waited % 60)) -eq 0 ]; then log_dim "still waiting… ${waited}s (HTTP $code)"; fi
     done
-    log_error "timed out after ${timeout}s waiting for DSS on port $port"
+    log_error "timed out after ${timeout}s waiting for the DSS backend on port $port"
+    log_dim "nginx may be serving the login page while the backend is still starting"
     return 1
 }
 

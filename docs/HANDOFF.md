@@ -4,14 +4,13 @@
 no memory of this project, this file plus [RESEARCH.md](RESEARCH.md) is
 everything you need.
 
-Last updated: 2026-09-03 (phases 1-2 complete, phase 3 in progress)
+Last updated: 2026-09-03 (phases 1-3 complete)
 
 ---
 
 ## Where things stand
 
-**Phases 1 and 2 are complete and verified against a live container. Phase 3 is
-in progress.**
+**Phases 1, 2 and 3 are complete and verified against live containers.**
 
 The coding gate was lifted on 2026-09-03 ("resume work using
 @dss-mac-docker/docs/HANDOFF.md"); no further permission is needed to continue.
@@ -33,9 +32,18 @@ Lifecycle works: `up` / `ls` / `stop` / `url` / `logs` / `shell` / `rm` / `gc`,
 plus `build` for the ~95 versions Hub does not publish. The three skills are
 installed via `make install`.
 
-`dss-12.6.4` was created, booted (~50s), licensed and issued a working admin
-API key — the whole provisioning chain, proven. See
-[findings/provisioning-chain-verified.md](findings/provisioning-chain-verified.md).
+Two instances run side by side and both were licensed and issued working admin
+API keys — the whole provisioning chain, proven, on a pulled image and a built
+one:
+
+```text
+12.6.4   dss-12.6.4   running   11640   pull    http://localhost:11640
+12.6.7   dss-12.6.7   running   11670   build   http://localhost:11670
+```
+
+Findings: [provisioning chain](findings/provisioning-chain-verified.md) ·
+[built image](findings/built-image-verified.md) ·
+[readiness](findings/readiness-must-probe-the-backend.md)
 
 Only `provision` / `license` / `apikey` / `register` / `snapshot` / `restore` /
 `upgrade` remain unimplemented — the phase-4 wrappers around mechanisms that are
@@ -84,32 +92,21 @@ key, and hand back `{url, api_key, nickname}`. See
 
 ## Next actions
 
-**Phase 2** per [ROADMAP.md](ROADMAP.md), in this order:
+**Phase 4 — provisioning** per [ROADMAP.md](ROADMAP.md). Every underlying
+mechanism is now confirmed working by hand; phase 4 is wrapping them:
 
-1. `up` — the idempotent state machine (DESIGN D4) **with the K3 migration guard
-   in the same change, not after**. Uses `catalog_source` to decide pull vs
-   build; build itself can stub out to phase 3 initially so `up` can be proven
-   against a Hub version first.
-2. `ls`, `stop`, `logs`, `shell`, `url`, `rm`, `gc` — all read state from Docker
-   labels, never a state file (DESIGN D2).
-3. `wait` — HTTP readiness poll. First boot is slow under emulation; start the
-   timeout at 30 minutes.
-4. Memory profile into `env-site.sh` at first boot — **measure the heap on a
-   live instance rather than guessing** (DESIGN D7).
-5. The three skills + `make install`; resolve K6 (symlink vs copy).
+1. `license <version>` — walk the preference order (`dev-*-2024.json` first),
+   `docker cp` then `dsscli set-license <path>`, check expiry first (K13)
+2. `apikey <version>` — `dsscli api-key-create --admin true --output json`;
+   reuse an existing key via `api-keys-list` rather than minting duplicates
+3. `register <version>` — **merge** into `~/.dataiku/config.json`, back it up
+   first; that file holds live production credentials (K12)
+4. `provision <spec> --output json` — the whole flow, emitting
+   `{nickname, url, api_key}`
 
-Exit criterion: `/start-dss-container 14.4.1` works cold, and re-running is a
-no-op that returns the URL.
-
-Good first target is `14.4.1` — it is on Hub, so phase 2 needs no build path.
-
-**Settle K11 the moment the first container boots**: the licences carry
-`instanceId: devl1-timhonker`, and if DSS enforces that, the whole provisioning
-flow dies at step 3. It is a two-minute check that can invalidate the design, so
-do it before building anything on top.
-
-Phase 3 (build) is on the critical path for the real consumer — the example the
-user gave, DSS 12.3.1, is **not** on Docker Hub.
+Then phase 3's remaining verification: build and boot one **13.x** and one
+**14.x** version. Only the 12.x era has been exercised, and 14/15 differ in base
+OS, Java and Python.
 
 ## Traps that will cost you time
 
@@ -118,10 +115,11 @@ user gave, DSS 12.3.1, is **not** on Docker Hub.
   KNOWN_ISSUES K3.
 - **Every docker call needs `--platform linux/amd64`.** arm64 host, x86-64-only
   product.
-- **Nothing has yet pulled, built or run a DSS image.** `doctor` has been
-  exercised against a live daemon and amd64 emulation is proven
-  ([finding](findings/rosetta-amd64-verified.md)), but the first `up` is still a
-  bring-up. See K9.
+- **`dsscli` talks to the DSS backend over REST, not the filesystem.** Every
+  subcommand needs the backend up on `:10001`. nginx serves the login page ~10s
+  earlier, so anything that treats `GET /` as readiness will intermittently fail
+  under automation. This bit once already —
+  [finding](findings/readiness-must-probe-the-backend.md).
 - **Do not move the version ARG above the expensive layers** in the era
   Dockerfiles. That is the upstream bug being fixed. RESEARCH §8.
 - The user works evidence-first: measure, then assert. Their sibling repo

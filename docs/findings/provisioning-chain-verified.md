@@ -7,12 +7,19 @@
 Every step of [PROVISIONING.md](../PROVISIONING.md) was executed against a real
 `dss-12.6.4` container. Nothing below is inferred.
 
-## 1. First boot is ~50 seconds, not "ten minutes or more"
+## 1. First boot is about a minute, not "ten minutes or more"
+
+> **Corrected 2026-09-03** by
+> [readiness-must-probe-the-backend](readiness-must-probe-the-backend.md). The
+> "HTTP 200 at 25s" below was **nginx**, not DSS. The readiness probe used at the
+> time reported success while the backend was still starting. Real
+> backend-ready is ~50-60s. The order of magnitude stands; the figure was
+> optimistic.
 
 The design assumed first boot would be slow because `installer.sh`, R integration
-and graphics export all run under Rosetta. Measured: **DSS answered HTTP 200 25
-seconds after container create**, with `supervisord` reporting `backend`,
-`ipython` and `nginx` all `RUNNING` by ~50s.
+and graphics export all run under Rosetta. Measured: HTTP 200 at 25 seconds
+(nginx), with `supervisord` reporting `backend`, `ipython` and `nginx` all
+`RUNNING` by ~50s.
 
 The reason, as Tim pointed out: **the Hub images ship DSS already installed**,
 R packages included. `run.sh` only initialises the datadir, which is mostly file

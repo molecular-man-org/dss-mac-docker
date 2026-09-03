@@ -5,17 +5,23 @@ is an assumption that has not been tested — treat it as a task, not a fact.
 
 ---
 
-## K1. Docker VM has 6.25 GB RAM — the binding constraint
+## K1. Docker VM memory — largely resolved 2026-09-03, and it was overstated
 
-DSS 14/15 assumes far more (upstream asks 32 GB for production). Expect to run
-**one modern instance at a time**, despite side-by-side being a wanted workflow.
+The VM has since been raised to **10 GB** and real usage measured
+([finding](findings/built-image-verified.md)): a DSS **12.x** instance idles at
+roughly **2 GiB**. Two ran comfortably side by side; about four would fit.
 
-Mitigations: reduced backend heap written at first boot (DESIGN D7); `up` warns
-and names candidates to stop when running instances exceed a memory budget.
+The original claim — "one modern instance at a time" — was a guess from
+upstream's 32 GB production figure and was **too pessimistic**. The
+`env-site.sh` heap tuning it motivated (DESIGN D7) is correspondingly
+unnecessary and should stay unimplemented until something demonstrates real
+pressure.
 
-Raising the VM to ~10 GB is reasonable on a 16 GB host. Going higher starves
-macOS. `doctor` should recommend but never silently change it — it requires a
-Docker Desktop restart.
+Still open: **14.x/15.x are unmeasured** and are much larger images, so they may
+idle higher. Measure before assuming they behave like 12.x.
+
+Going above ~10 GB on a 16 GB host starves macOS. `doctor` recommends but never
+silently changes it — the setting needs a Docker Desktop restart.
 
 ## K2. Everything runs under Rosetta emulation
 

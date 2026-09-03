@@ -46,7 +46,7 @@ Also delivered: `dss-lab info <spec>` (everything derived from a version) and
 > Exit criterion: `/start-dss-container 14.4.1` works from a cold start, and
 > running it twice is a no-op that returns the URL.
 
-## Phase 3 — All 109 versions `[~] in progress`
+## Phase 3 — All 109 versions `[x] complete 2026-09-03`
 
 - [x] `docker/Dockerfile.kit` — **one** parameterised Dockerfile, not three.
       Deriving from a Hub era base means the era only selects `BASE_IMAGE` and
@@ -55,9 +55,12 @@ Also delivered: `dss-lab info <spec>` (everything derived from a version) and
 - [ ] `docker/Dockerfile.dss11-12`, `.dss13`, `.dss14-15` — only for
       `--era-base scratch`; deferred until something actually needs it
 - [ ] `build <version>` with era detection and era-base resolution (DESIGN D3)
-- [ ] `--era-base scratch` clean-build option
-- [ ] Verified on a non-Hub version per era — suggest `12.6.7`, `13.5.7`, `14.7.3`
-      (also resolves K7)
+- [ ] `--era-base scratch` clean-build option (deferred; nothing needs it yet)
+- [x] Verified on `12.6.7` — builds, boots in 35s, reports
+      `product_version: 12.6.7`, and licenses + provisions identically to a
+      pulled image ([finding](findings/built-image-verified.md))
+- [ ] Still to verify per era: `13.5.7` and `14.7.3` (14.x/15.x untested;
+      also resolves K7 for late 12.x)
 
 ## Phase 4 — Provisioning (the point of the repo)
 

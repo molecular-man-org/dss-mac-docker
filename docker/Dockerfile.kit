@@ -18,7 +18,9 @@
 #     --build-arg PUPPETEER_VERSION=13.7.0 \
 #     -f docker/Dockerfile.kit .
 
-ARG BASE_IMAGE
+# A default keeps `docker build` from warning about an empty FROM; dss-lab
+# always passes this explicitly via build_base_for().
+ARG BASE_IMAGE=dataiku/dss:12.6.4
 FROM ${BASE_IMAGE}
 
 # Declared AFTER the base so nothing above it is invalidated. Upstream declares

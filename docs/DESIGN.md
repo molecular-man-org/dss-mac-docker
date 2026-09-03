@@ -144,14 +144,22 @@ the three skill directories out of this repo, so edits take effect with no
 reinstall. If Claude Code turns out not to follow symlinks there, fall back to
 copying — **this is unverified**, see KNOWN_ISSUES.
 
-## D7. Memory profile written at first boot
+## D7. Memory profile — measured, and deliberately not implemented
 
-The 6.25 GB VM is the binding constraint (RESEARCH §1) and DSS 14/15 assumes far
-more. On first boot `up` writes a reduced backend heap into
-`$DSS_DATADIR/bin/env-site.sh` before starting DSS.
+The plan was to write a reduced backend heap into `$DSS_DATADIR/bin/env-site.sh`
+at first boot, with sizing left as a measurement rather than a guess.
 
-Sizing is deliberately left as a phase-2 measurement rather than a guess — the
-right heap has to come from watching a real instance, not from arithmetic.
+**The measurement came back and the answer is: do nothing.** A DSS 12.x instance
+idles at ~2 GiB, and two ran side by side on a 10 GB VM without pressure
+([finding](findings/built-image-verified.md)). Writing a smaller heap would slow
+DSS down to solve a problem that does not exist.
+
+`up` still sets a container memory ceiling derived from the VM size. Heap tuning
+stays unimplemented until 14.x/15.x — larger images, unmeasured — or a real
+workload demonstrates it is needed.
+
+This is the design working as intended: the measurement was the deliverable, and
+it retired the feature.
 
 ## D8. Provisioning is the primary interface
 
