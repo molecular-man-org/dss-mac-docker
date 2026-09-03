@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# dss-lab — run any Dataiku DSS version (11.x-15.x) on macOS with Docker Desktop.
+#
+# All real logic lives here rather than in the Claude skills, so it stays
+# testable without an LLM in the loop (DESIGN.md D6).
+
+set -euo pipefail
+
+_self="${BASH_SOURCE[0]}"
+while [ -h "$_self" ]; do
+    _d=$(cd -P "$(dirname "$_self")" && pwd)
+    _self=$(readlink "$_self")
+    case "$_self" in /*) ;; *) _self="$_d/$_self" ;; esac
+done
+LIB_DIR="$(cd -P "$(dirname "$_self")/lib" && pwd)"
+
+# shellcheck source=bin/lib/common.sh
+. "$LIB_DIR/common.sh"
+# shellcheck source=bin/lib/catalog.sh
+. "$LIB_DIR/catalog.sh"
+# shellcheck source=bin/lib/doctor.sh
+. "$LIB_DIR/doctor.sh"
+
+usage() {
+    cat <<'__HELP__'
+dss-lab — Dataiku DSS versions on macOS + Docker Desktop
+
+USAGE
+    dss-lab <command> [args]
+
+READY
+    doctor [--deep]        Preflight: daemon, Rosetta, VM memory, disk, catalogue
+    catalog [options]      List known DSS versions and how each is obtained
+    resolve <spec>         Resolve a version spec to a concrete version
+    info <spec>            Show everything derived from a version
+    versions               Bare list of known versions, newest first
+
+    catalog options:
+      --summary            Per-release-line counts (default)
+      --all                Full table
+      --major N            Only line N
+      --source pull|build  Only versions obtained that way
+      --refresh            Re-scrape downloads.dataiku.com and Docker Hub
+
+PLANNED (phase 2+)
+    up <spec>              Create or start the container for a version
+    ls | stop | logs | shell | url | rm | gc
+    build <spec> | snapshot | restore | upgrade
+
+SPECS
+    latest    highest known version
+    14        highest 14.x
+    12.3      highest 12.3.x
+    12.3.0    exact          (a leading "v" or "DSS " is fine)
+__HELP__
+}
+
+cmd_resolve() {
+    [ $# -ge 1 ] || die "resolve: need a version spec"
+    catalog_resolve "$*"
+    printf '\n'
+}
+
+cmd_info() {
+    local v
+    [ $# -ge 1 ] || die "info: need a version spec"
+    v=$(catalog_resolve "$*") || exit 1
+
+    printf '%-14s %s\n' "version"   "$v"
+    printf '%-14s %s\n' "era"       "$(version_era "$v")"
+    printf '%-14s %s\n' "source"    "$(catalog_source "$v")"
+    printf '%-14s %s\n' "container" "$(container_name "$v")"
+    printf '%-14s %s\n' "volume"    "$(volume_name "$v")"
+    printf '%-14s %s\n' "port"      "$(version_port "$v")"
+    printf '%-14s %s\n' "url"       "$(instance_url "$v")"
+    if [ "$(catalog_source "$v")" = "pull" ]; then
+        printf '%-14s %s\n' "image" "$(image_hub "$v")"
+    else
+        printf '%-14s %s\n' "image" "$(image_local "$v")"
+        printf '%-14s %s\n' "build base" "$(era_base_image "$(version_era "$v")")"
+    fi
+    version_port_is_canonical "$v" || \
+        log_warn "minor/patch exceeds 9: port may collide, 'up' will fall back to a free port"
+}
+
+cmd_catalog() {
+    local mode="summary" args=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --summary) mode="summary"; shift ;;
+            --all)     mode="table";   shift ;;
+            --refresh) catalog_refresh; return 0 ;;
+            --major)   mode="table"; args="$args --major $2"; shift 2 ;;
+            --source)  mode="table"; args="$args --source $2"; shift 2 ;;
+            -h|--help) usage; return 0 ;;
+            *) die "catalog: unknown option $1" ;;
+        esac
+    done
+    if [ "$mode" = "summary" ]; then
+        catalog_summary
+    else
+        # shellcheck disable=SC2086
+        catalog_table $args
+    fi
+}
+
+cmd_not_yet() {
+    log_error "'$1' is not implemented yet (phase 2 — see docs/ROADMAP.md)"
+    exit 1
+}
+
+main() {
+    [ $# -ge 1 ] || { usage; exit 0; }
+    local cmd="$1"; shift
+    case "$cmd" in
+        doctor)   set +e; doctor_run "${1:-}"; exit $? ;;
+        catalog)  cmd_catalog "$@" ;;
+        resolve)  cmd_resolve "$@" ;;
+        info)     cmd_info "$@" ;;
+        versions) catalog_versions | version_sort | tail -r 2>/dev/null || catalog_versions | version_sort ;;
+        up|ls|stop|logs|shell|url|rm|gc|build|snapshot|restore|upgrade) cmd_not_yet "$cmd" ;;
+        -h|--help|help) usage ;;
+        *) log_error "unknown command: $cmd"; usage; exit 1 ;;
+    esac
+}
+
+main "$@"

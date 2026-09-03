@@ -26,10 +26,14 @@ Consequences: first boot is slow — `installer.sh` plus R integration plus
 graphics export, all emulated. `wait` must poll HTTP with a generous timeout
 (start at 30 min for first boot) rather than appearing to hang.
 
-**UNVERIFIED:** that every era actually boots under Rosetta. Risk is low —
-everything in range is 2022+ on AlmaLinux 8/9 with Java 8 or 17 — but it is
-unmeasured. Phase 5 spot-checks each era plus the boundary versions 11.4.5,
-12.6.7, 13.5.7, 14.7.3.
+**Partly resolved 2026-09-03:** emulation itself is proven — an amd64 container
+ran and reported `x86_64` via `doctor --deep`
+([finding](findings/rosetta-amd64-verified.md)).
+
+**Still UNVERIFIED:** that *DSS* boots under emulation. A static `uname` binary
+proves nothing about a JVM, R, Python and nginx running together for minutes
+under memory pressure. Phase 5 still spot-checks each era plus the boundary
+versions 11.4.5, 12.6.7, 13.5.7, 14.7.3.
 
 ## K3. `run.sh` upgrades datadirs irreversibly, with no prompt
 
@@ -79,9 +83,14 @@ or a containerized-execution base image is **UNVERIFIED** and unresolvable
 without a 5.4 GB download (RESEARCH §5). Deliberately out of scope. Reopen only
 for an air-gapped workflow.
 
-## K9. Docker daemon was not running during research
+## K9. Docker daemon was not running during research — RESOLVED 2026-09-03
 
-The socket did not exist when this repo was planned, so **no Docker command in
-this repo has been executed against a live daemon yet**. Every docker invocation
-is written from the documented contract, not from observed behaviour. Treat the
-first real run as a bring-up.
+The socket did not exist when this repo was planned, so the phase-1 code was
+written from the documented contract rather than observed behaviour.
+
+The daemon has since been up: `doctor` was exercised in both states (down →
+blocking, with the `open -a Docker` hint; up → passing) and `doctor --deep` ran
+a real container. Phase-1 docker interaction is no longer theoretical.
+
+Still true for **phase 2 onward** — nothing has yet pulled, built or run a DSS
+image. Treat the first `up` as a bring-up.

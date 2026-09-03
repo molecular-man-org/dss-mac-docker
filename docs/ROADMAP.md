@@ -7,17 +7,26 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified
 
 ---
 
-## Phase 1 — Foundation
+## Phase 1 — Foundation `[x] complete 2026-09-03`
 
-- [ ] `bin/lib/common.sh` — logging, error handling, `docker` wrapper that always
-      passes `--platform linux/amd64`, version parsing, port formula (+ guard)
-- [ ] `bin/dss-lab doctor` — daemon running (offer `open -a Docker`), Rosetta
+- [x] `bin/lib/common.sh` — logging, error handling, version parsing, port formula
+      (+ canonicality guard), era mapping, derived identities, VM probing.
+      `--platform linux/amd64` is applied explicitly by the commands that create
+      or fetch images, **not** by a blanket wrapper — it breaks `ps`/`logs`.
+- [x] `bin/dss-lab doctor` — daemon running (offer `open -a Docker`), Rosetta
       enabled, VM RAM/disk headroom, `--platform` support
-- [ ] `bin/dss-lab catalog` — merge `data/versions-11plus.txt` with live Hub tags,
+- [x] `bin/dss-lab catalog` — merge `data/versions-11plus.txt` with live Hub tags,
       label each `pull` or `build`; cache the Hub query
-- [ ] `bin/dss-lab resolve <spec>` — `v12.3.0` / `12.3` / `13` / `latest` → concrete
-- [ ] `tests/run_tests.sh` — unit tests for parsing, port formula, resolution.
-      No Docker required.
+- [x] `bin/dss-lab resolve <spec>` — `v12.3.0` / `12.3` / `13` / `latest` → concrete
+- [x] `tests/run_tests.sh` — unit tests for parsing, port formula, resolution.
+      No Docker required. **78 assertions, mutation-tested.**
+
+Also delivered: `dss-lab info <spec>` (everything derived from a version) and
+`dss-lab versions`. shellcheck-clean at `-S warning`.
+
+> Verified: `doctor` exercised against a live daemon in both states, and
+> `doctor --deep` confirmed amd64 emulation actually executes. See
+> [findings/rosetta-amd64-verified.md](findings/rosetta-amd64-verified.md).
 
 ## Phase 2 — Usable end to end
 

@@ -4,22 +4,32 @@
 no memory of this project, this file plus [RESEARCH.md](RESEARCH.md) is
 everything you need.
 
-Last updated: 2026-09-03
+Last updated: 2026-09-03 (phase 1 complete)
 
 ---
 
 ## Where things stand
 
-**Planning and research are complete and signed off. No implementation code
-exists yet.** The repo currently contains documentation, two research data files,
-and empty scaffolding directories.
+**Phase 1 is complete and verified. Phase 2 has not started.**
 
-The user (Tim, `THE-MOLECULAR-MAN`) gated implementation with "plan first, do not
-write code yet" and has **not yet lifted that gate**. The last instruction was to
-create the repo and document everything — which is what exists now.
+The coding gate was lifted on 2026-09-03 ("resume work using
+@dss-mac-docker/docs/HANDOFF.md"); no further permission is needed to continue.
 
-> **Do not start writing `bin/dss-lab` without confirming.** Ask whether to begin
-> phase 1-2. Everything needed to start immediately is in ROADMAP.md.
+Working today:
+
+```bash
+dss-lab doctor [--deep]     # preflight; --deep runs a real amd64 container
+dss-lab catalog [--all]     # 109 versions, which are pull vs build
+dss-lab resolve <spec>      # "DSS v12.3" -> 12.3.2
+dss-lab info <spec>         # every derived name, port and image for a version
+dss-lab versions
+```
+
+`tests/run_tests.sh` — 78 assertions, no Docker needed, mutation-tested to
+confirm it actually catches regressions. shellcheck-clean at `-S warning`.
+
+Every phase-2+ subcommand (`up`, `ls`, `build`, ...) is dispatched but exits
+with "not implemented yet".
 
 ## What this project is
 
@@ -53,12 +63,24 @@ A macOS + Docker Desktop toolkit for running **any DSS version from 11.0.0 to
 
 ## Next actions
 
-1. Confirm with the user that implementation can begin.
-2. Phase 1 per [ROADMAP.md](ROADMAP.md) — `common.sh`, `doctor`, `catalog`,
-   `resolve`, unit tests. None of it needs a running Docker daemon.
-3. Phase 2 — `up` **with the K3 migration guard in the same change**, plus the
-   three skills and `make install`. Exit criterion: `/start-dss-container 14.4.1`
-   works cold, and re-running is a no-op returning the URL.
+**Phase 2** per [ROADMAP.md](ROADMAP.md), in this order:
+
+1. `up` — the idempotent state machine (DESIGN D4) **with the K3 migration guard
+   in the same change, not after**. Uses `catalog_source` to decide pull vs
+   build; build itself can stub out to phase 3 initially so `up` can be proven
+   against a Hub version first.
+2. `ls`, `stop`, `logs`, `shell`, `url`, `rm`, `gc` — all read state from Docker
+   labels, never a state file (DESIGN D2).
+3. `wait` — HTTP readiness poll. First boot is slow under emulation; start the
+   timeout at 30 minutes.
+4. Memory profile into `env-site.sh` at first boot — **measure the heap on a
+   live instance rather than guessing** (DESIGN D7).
+5. The three skills + `make install`; resolve K6 (symlink vs copy).
+
+Exit criterion: `/start-dss-container 14.4.1` works cold, and re-running is a
+no-op that returns the URL.
+
+Good first target is `14.4.1` — it is on Hub, so phase 2 needs no build path.
 
 ## Traps that will cost you time
 
@@ -67,9 +89,10 @@ A macOS + Docker Desktop toolkit for running **any DSS version from 11.0.0 to
   KNOWN_ISSUES K3.
 - **Every docker call needs `--platform linux/amd64`.** arm64 host, x86-64-only
   product.
-- **No Docker command in this repo has run against a live daemon.** The daemon
-  was down during research; everything is written from the documented contract.
-  Treat first execution as bring-up. See K9.
+- **Nothing has yet pulled, built or run a DSS image.** `doctor` has been
+  exercised against a live daemon and amd64 emulation is proven
+  ([finding](findings/rosetta-amd64-verified.md)), but the first `up` is still a
+  bring-up. See K9.
 - **Do not move the version ARG above the expensive layers** in the era
   Dockerfiles. That is the upstream bug being fixed. RESEARCH §8.
 - The user works evidence-first: measure, then assert. Their sibling repo

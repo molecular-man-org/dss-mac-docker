@@ -1,0 +1,148 @@
+#!/usr/bin/env bash
+# run_tests.sh — unit tests for the pure functions. No Docker daemon required.
+
+set -uo pipefail
+
+ROOT="$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export DSS_LAB_ROOT="$ROOT"
+NO_COLOR=1; export NO_COLOR
+
+# shellcheck source=../bin/lib/common.sh
+. "$ROOT/bin/lib/common.sh"
+# shellcheck source=../bin/lib/catalog.sh
+. "$ROOT/bin/lib/catalog.sh"
+
+PASS=0; FAIL=0
+
+ok()   { PASS=$((PASS+1)); }
+bad()  { FAIL=$((FAIL+1)); printf 'FAIL  %s\n' "$1" >&2; }
+
+# assert_eq <label> <expected> <actual>
+assert_eq() {
+    if [ "$2" = "$3" ]; then ok; else bad "$1: expected '$2', got '$3'"; fi
+}
+# assert_true <label> <command...>
+assert_true() {
+    local label="$1"; shift
+    if "$@" >/dev/null 2>&1; then ok; else bad "$label: expected success"; fi
+}
+# assert_false <label> <command...>
+assert_false() {
+    local label="$1"; shift
+    if "$@" >/dev/null 2>&1; then bad "$label: expected failure"; else ok; fi
+}
+
+section() { printf '\n%s\n' "$1"; }
+
+# ------------------------------------------------------------ version_valid --
+section "version_valid"
+for v in 12.3.0 11.0.0 15.0.0 100.20.30; do assert_true "valid $v" version_valid "$v"; done
+for v in "" 12.3 v12.3.0 12.3.0.1 12.3.x "12 3 0" abc; do
+    assert_false "invalid $v" version_valid "$v"
+done
+
+# --------------------------------------------------------- version_in_range --
+section "version_in_range (floor is 11.0.0)"
+for v in 11.0.0 12.6.7 15.0.0; do assert_true "in range $v" version_in_range "$v"; done
+for v in 10.0.9 8.0.2 4.3.3; do assert_false "out of range $v" version_in_range "$v"; done
+
+# ---------------------------------------------------------------- port math --
+section "version_port"
+assert_eq "11.0.0" 10000 "$(version_port 11.0.0)"
+assert_eq "12.3.0" 11300 "$(version_port 12.3.0)"
+assert_eq "12.6.7" 11670 "$(version_port 12.6.7)"
+assert_eq "13.5.7" 12570 "$(version_port 13.5.7)"
+assert_eq "14.4.1" 13410 "$(version_port 14.4.1)"
+assert_eq "14.7.3" 13730 "$(version_port 14.7.3)"
+assert_eq "15.0.0" 14000 "$(version_port 15.0.0)"
+
+section "version_port is collision-free across the whole catalogue"
+dupes=$(for v in $(catalog_versions); do version_port "$v"; printf '\n'; done | sort | uniq -d | wc -l | tr -d ' ')
+total=$(catalog_versions | wc -l | tr -d ' ')
+distinct=$(for v in $(catalog_versions); do version_port "$v"; printf '\n'; done | sort -u | wc -l | tr -d ' ')
+assert_eq "no duplicate ports" 0 "$dupes"
+assert_eq "distinct ports == version count" "$total" "$distinct"
+
+section "version_port_is_canonical"
+assert_true  "12.6.7 canonical"      version_port_is_canonical 12.6.7
+assert_false "12.10.0 not canonical" version_port_is_canonical 12.10.0
+assert_false "12.0.10 not canonical" version_port_is_canonical 12.0.10
+
+# --------------------------------------------------------------------- era --
+section "version_era boundaries"
+assert_eq "11.0.0" dss11-12 "$(version_era 11.0.0)"
+assert_eq "11.4.5" dss11-12 "$(version_era 11.4.5)"
+assert_eq "12.0.0" dss11-12 "$(version_era 12.0.0)"
+assert_eq "12.6.7" dss11-12 "$(version_era 12.6.7)"
+assert_eq "13.0.0" dss13    "$(version_era 13.0.0)"
+assert_eq "13.5.7" dss13    "$(version_era 13.5.7)"
+assert_eq "14.0.0" dss14-15 "$(version_era 14.0.0)"
+assert_eq "14.7.3" dss14-15 "$(version_era 14.7.3)"
+assert_eq "15.0.0" dss14-15 "$(version_era 15.0.0)"
+assert_false "10.0.9 has no era" version_era 10.0.9
+
+section "era_base_image"
+assert_eq "dss11-12" "dataiku/dss:12.6.4" "$(era_base_image dss11-12)"
+assert_eq "dss13"    "dataiku/dss:13.4.4" "$(era_base_image dss13)"
+assert_eq "dss14-15" "dataiku/dss:15.0.0" "$(era_base_image dss14-15)"
+assert_false "unknown era rejected" era_base_image nonsense
+
+section "era base is itself in its era, and published on Hub"
+for era in dss11-12 dss13 dss14-15; do
+    base=$(era_base_image "$era"); tag="${base##*:}"
+    assert_eq "$era base era matches" "$era" "$(version_era "$tag")"
+    assert_true "$era base $tag is on Hub" catalog_hub_tags_has "$tag"
+done
+
+# -------------------------------------------------------------- identities --
+section "derived identities"
+assert_eq "container" "dss-12.3.0"                 "$(container_name 12.3.0)"
+assert_eq "volume"    "dss-12.3.0-data"            "$(volume_name 12.3.0)"
+assert_eq "hub image" "dataiku/dss:14.4.1"         "$(image_hub 14.4.1)"
+assert_eq "local img" "dss-mac-docker/dss:12.3.0"  "$(image_local 12.3.0)"
+assert_eq "url"       "http://localhost:11300"     "$(instance_url 12.3.0)"
+
+# ----------------------------------------------------------------- catalog --
+section "catalogue integrity"
+assert_eq "109 versions in range" 109 "$(catalog_versions | wc -l | tr -d ' ')"
+assert_eq "14 Hub tags in range"  14  "$(catalog_hub_tags | wc -l | tr -d ' ')"
+bad_range=$(catalog_versions | while read -r v; do version_in_range "$v" || printf 'x'; done | wc -c | tr -d ' ')
+assert_eq "every catalogued version is in range" 0 "$bad_range"
+orphans=$(catalog_hub_tags | while read -r t; do catalog_known "$t" || printf '%s ' "$t"; done)
+assert_eq "every Hub tag is a known version" "" "$orphans"
+
+section "catalog_source"
+assert_eq "14.4.1 on Hub"      pull  "$(catalog_source 14.4.1)"
+assert_eq "12.6.4 on Hub"      pull  "$(catalog_source 12.6.4)"
+assert_eq "12.3.0 needs build" build "$(catalog_source 12.3.0)"
+assert_eq "14.7.3 needs build" build "$(catalog_source 14.7.3)"
+
+# ----------------------------------------------------------------- resolve --
+section "catalog_resolve"
+assert_eq "exact"          12.3.0 "$(catalog_resolve 12.3.0)"
+assert_eq "leading v"      12.3.0 "$(catalog_resolve v12.3.0)"
+assert_eq "uppercase V"    12.3.0 "$(catalog_resolve V12.3.0)"
+assert_eq "dss prefix"     12.3.0 "$(catalog_resolve 'DSS 12.3.0')"
+assert_eq "dss v prefix"   12.3.0 "$(catalog_resolve 'dss v12.3.0')"
+assert_eq "major only"     14.7.3 "$(catalog_resolve 14)"
+assert_eq "major.minor"    12.3.2 "$(catalog_resolve 12.3)"
+assert_eq "latest"         15.0.0 "$(catalog_resolve latest)"
+assert_eq "newest"         15.0.0 "$(catalog_resolve newest)"
+assert_eq "line 13"        13.5.7 "$(catalog_resolve 13)"
+assert_eq "line 11"        11.4.5 "$(catalog_resolve 11)"
+
+section "catalog_resolve rejects"
+assert_false "unknown patch"   catalog_resolve 12.9.9
+assert_false "below floor"     catalog_resolve 8.0.2
+assert_false "unknown line"    catalog_resolve 99
+assert_false "garbage"         catalog_resolve "not-a-version"
+assert_false "empty"           catalog_resolve ""
+
+# ------------------------------------------------------------------ report --
+printf '\n----------------------------------------\n'
+if [ "$FAIL" -eq 0 ]; then
+    printf 'ok      %d assertions passed\n' "$PASS"
+    exit 0
+fi
+printf 'FAILED  %d passed, %d failed\n' "$PASS" "$FAIL"
+exit 1
