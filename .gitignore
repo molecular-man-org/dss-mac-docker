@@ -1,0 +1,6 @@
+.DS_Store
+*.log
+evidence/*
+!evidence/.gitkeep
+.cache/
+*.tar.gz
