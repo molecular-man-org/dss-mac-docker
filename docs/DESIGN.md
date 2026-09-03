@@ -51,38 +51,55 @@ The **volume's** `version` label additionally records which DSS version last
 wrote the datadir — that is what makes the irreversible-upgrade guard in D5
 possible.
 
-## D3. Two-stage build, with the era base pulled from Hub
+## D3. Two-stage build, on a same-major Hub base
 
 Build-from-kit is the primary path (RESEARCH §3), so it has to be fast. Two
 compounding fixes:
 
-**Stage 1 — era base.** Do not build one from scratch. `dataiku/dss:15.0.0`
-*already is* the al9 era with every OS dependency installed and every R package
-compiled. Use the nearest Hub tag in the same era as the base:
+**Stage 1 — reuse a published image as the base.** Do not build one from
+scratch. `dataiku/dss:14.7.0` *already is* an al9 DSS with every OS dependency
+installed and every R package compiled.
 
-| Era | Era base | Covers |
-| --- | --- | --- |
-| 11.x - 12.x | `dataiku/dss:12.6.4` | 47 versions |
-| 13.x | `dataiku/dss:13.4.4` | 30 versions |
-| 14.x - 15.x | `dataiku/dss:15.0.0` | 32 versions |
+The base is chosen **same-major**, not same-era. An era spans two majors, and a
+14.x kit on a 15.0.0 base would inherit 15's Python. `major_base_image()`:
+
+| Major | Base | Major | Base |
+| --- | --- | --- | --- |
+| 11.x | `dataiku/dss:11.2.0` | 14.x | `dataiku/dss:14.7.0` |
+| 12.x | `dataiku/dss:12.6.4` | 15.x | `dataiku/dss:15.0.0` |
+| 13.x | `dataiku/dss:13.4.4` | | |
+
+`build_base_for()` then prefers **any same-major Hub image already present
+locally** over pulling the canonical one, because fetching another 3-4 GB base
+to build one version defeats the purpose. `--base IMAGE` overrides. The base
+actually used is recorded on the image as `dss-mac-docker.base`, so a build is
+always traceable to what it came from.
+
+The era is still the right granularity for toolchain metadata — the puppeteer
+pin (`era_puppeteer`) and the dnf repo flag — just not for the base image.
 
 **Stage 2 — per-version layer.** Declare the version ARG *below* everything
 expensive, fixing the upstream caching flaw (RESEARCH §8):
 
 ```dockerfile
-FROM dataiku/dss:15.0.0
-ARG dssVersion                 # declared late: base layers stay cached
+ARG BASE_IMAGE=dataiku/dss:12.6.4
+FROM ${BASE_IMAGE}
+ARG DSS_VERSION_ARG          # declared late: base layers stay cached
+ARG PUPPETEER_VERSION
 RUN <download kit> && <extract> && <installdir-postinstall.sh> && <npm puppeteer>
+ENV DSS_VERSION=${DSS_VERSION_ARG}
 ```
 
-Each of the ~95 non-Hub versions becomes a kit download plus install — minutes,
-not an hour of emulated R compilation.
+Setting `ENV DSS_VERSION` is what redirects the base's inherited `run.sh` onto
+the newly installed kit. **One parameterised Dockerfile covers every era**, since
+the era only selects `BASE_IMAGE` and `PUPPETEER_VERSION`; per-era Dockerfiles
+would only be needed for a from-scratch build, which is not implemented.
 
-**Cost:** the era base carries a dead ~3 GB kit for its own DSS version in a
-lower layer, so removing it in stage 2 reclaims nothing. That is ~3 GB per era,
-shared by every version in the era. Good trade against a 60-minute emulated
-build. `--era-base scratch` builds clean from `almalinux:8`/`:9` using the
-transcribed upstream recipe for when it matters.
+**Cost:** the base carries a dead ~3 GB kit for its own DSS version in a lower
+layer, so deleting it in stage 2 reclaims nothing. Measured: a built 12.6.7 image
+is 17.3 GB against a 10.8 GB base. That is the documented trade for skipping an
+hour of emulated R compilation, and the dead weight is shared by every version
+built on that base.
 
 ## D4. `up` is idempotent and never prompts
 

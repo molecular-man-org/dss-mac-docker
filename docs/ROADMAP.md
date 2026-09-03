@@ -21,7 +21,8 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified
       label each `pull` or `build`; cache the Hub query
 - [x] `bin/dss-lab resolve <spec>` — `v12.3.0` / `12.3` / `13` / `latest` → concrete
 - [x] `tests/run_tests.sh` — unit tests for parsing, port formula, resolution.
-      No Docker required. **78 assertions, mutation-tested.**
+      No Docker required. Mutation-tested. (167 assertions as of v0.1.0;
+      78 when phase 1 closed.)
 
 Also delivered: `dss-lab info <spec>` (everything derived from a version) and
 `dss-lab versions`. shellcheck-clean at `-S warning`.

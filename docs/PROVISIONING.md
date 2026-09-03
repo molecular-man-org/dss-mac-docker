@@ -119,21 +119,27 @@ docker exec <container> /home/dataiku/dss/bin/dsscli user-edit -h
 
 ## Step 3 — licence
 
-Verified mechanism: DSS reads its licence from `DATA_DIR/config/license.json`.
-Dropping a file there and restarting is sufficient, and works identically across
-every version in range. `installer.sh -l <file>` is the alternative at first
-install.
-
-Two routes, in preference order:
+**What `license_apply` actually does** — one route, not two:
 
 ```bash
-# preferred: dsscli validates and may reload without a restart
-docker exec <container> /home/dataiku/dss/bin/dsscli set-license <args>
-
-# fallback, confirmed to work on every version in range:
-docker cp <licence> <container>:/home/dataiku/dss/config/license.json
-docker restart <container>
+docker cp <licence> <container>:/tmp/dss-lab-license.json
+docker exec <container> /home/dataiku/dss/bin/dsscli set-license /tmp/dss-lab-license.json
+docker exec <container> rm -f /tmp/dss-lab-license.json
 ```
+
+`dsscli set-license` writes `DATA_DIR/config/license.json` itself and takes
+effect **without a restart**. The staging copy is removed afterwards so a licence
+does not linger in `/tmp` inside the container.
+
+> `dsscli` is a **REST client against the DSS backend on `:10001`**, not a
+> filesystem tool, so this only works once the backend is genuinely up. That is
+> why readiness probes the API rather than nginx — see
+> [findings/readiness-must-probe-the-backend.md](findings/readiness-must-probe-the-backend.md).
+
+Writing `config/license.json` directly and restarting also works and needs no
+running backend, and `installer.sh -l <file>` applies one at first install.
+**Neither is implemented** — they are documented as escape hatches if
+`dsscli set-license` ever proves unavailable on some version.
 
 **Licence source** is an untracked folder, currently
 `~/Downloads/yournewinternalusagelicense/`. It must stay configurable and must

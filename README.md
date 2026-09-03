@@ -12,9 +12,9 @@ Its main consumer is the `dss-headless-upgrade-planning-skill` project, which
 needs old DSS versions stood up on demand to test compatibility matrices
 against. See [docs/PROVISIONING.md](docs/PROVISIONING.md).
 
-> **Status: planned, not built.** Research and design are complete and verified;
-> no implementation code exists yet. Start at
-> [docs/HANDOFF.md](docs/HANDOFF.md).
+> **Status: v0.1.0.** Provisioning works end to end and is verified on the 12.x
+> and 14.x eras. See [CHANGELOG.md](CHANGELOG.md) for what is and is not proven,
+> and [docs/HANDOFF.md](docs/HANDOFF.md) to pick up the work.
 
 ---
 
@@ -27,6 +27,47 @@ Silicon Mac means an hour of emulated R compilation per version.
 
 This repo makes any of the 109 reachable in minutes, and makes starting one a
 single sentence.
+
+## For a calling agent
+
+This repo is a **provisioning backend**. Shell out to the CLI; there is nothing
+to install and no shared state to coordinate.
+
+```bash
+/path/to/dss-mac-docker/bin/dss-lab provision 12.6.4 --output json
+```
+
+stdout is **only** the JSON below; all logging goes to stderr, so pipe it
+straight into a parser. Exit code is `0` on success, non-zero on failure.
+
+```json
+{
+  "nickname": "dss-12.6.4",
+  "url": "http://localhost:11640",
+  "api_key": "...",
+  "version": "12.6.4",
+  "container": "dss-12.6.4",
+  "licence": "dev-timhonker-2024.json",
+  "status": "ready"
+}
+```
+
+The instance is also registered in `~/.dataiku/config.json`, so a
+`dataiku-headless` client can connect with **just the nickname** —
+`switch_instance("dss-12.6.4")` — and no credential has to travel between
+agents.
+
+**Call it as often as you like.** `provision` is idempotent: an existing
+instance is started rather than rebuilt, and its existing API key is reused
+rather than a second one minted.
+
+Budget for it: a version already built starts in **under a minute**; one that
+must be built takes **several minutes** (a ~2 GB kit download plus install under
+emulation). `provision` blocks until DSS actually answers, so a slow return is
+progress, not a hang.
+
+Version specs are flexible — `12.6.4`, `12.6`, `13`, `latest` all resolve.
+`dss-lab catalog` lists all 109.
 
 ## How it works
 
