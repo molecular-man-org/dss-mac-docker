@@ -62,23 +62,25 @@ Also delivered: `dss-lab info <spec>` (everything derived from a version) and
 - [ ] Still to verify per era: `13.5.7` and `14.7.3` (14.x/15.x untested;
       also resolves K7 for late 12.x)
 
-## Phase 4 — Provisioning (the point of the repo)
+## Phase 4 — Provisioning (the point of the repo) `[x] complete 2026-09-03`
 
 Serves [PROVISIONING.md](PROVISIONING.md). Promoted above upgrade paths because
 the sibling project depends on it.
 
-- [ ] `license <version>` — walk the preference order (`dev-*-2024.json` first),
+- [x] `license <version>` — walks the preference order (`dev-*-2024.json` first),
       `docker cp` into `config/license.json`, restart, verify DSS accepted it
-- [ ] Expiry pre-check — fail loudly rather than let DSS report it obliquely (K13)
-- [ ] `apikey <version>` — `dsscli api-key-create --admin true --output json`;
+- [x] Expiry pre-check — fail loudly rather than let DSS report it obliquely (K13)
+- [x] `apikey <version>` — `dsscli api-key-create --admin true --output json`;
       reuse an existing key rather than minting a duplicate
-- [ ] `register <version>` — merge-safe write into `~/.dataiku/config.json`,
+- [x] `register <version>` — merge-safe write into `~/.dataiku/config.json`,
       with a backup first (K12)
-- [ ] `provision <spec> [--output json]` — the whole flow end to end
-- [ ] Settle K11 (licence `instanceId` binding) at the first booted container
+- [x] `provision <spec> [--output json]` — the whole flow end to end
+- [x] K11 settled — `instanceId` does not block licence application
 
-> Exit criterion: the upgrade-planning skill asks for DSS 12.3.1 and gets back a
-> working `{url, api_key, nickname}` without a human touching anything.
+> Exit criterion **met**: `provision 12.6.7 --output json` returns a working
+> `{url, api_key, nickname}` unattended, and `dataiku-headless` connected to it
+> by nickname alone —
+> [finding](findings/provisioning-flow-verified.md).
 
 ## Phase 5 — Upgrade paths
 

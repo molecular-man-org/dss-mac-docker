@@ -24,6 +24,8 @@ LIB_DIR="$(cd -P "$(dirname "$_self")/lib" && pwd)"
 . "$LIB_DIR/image.sh"
 # shellcheck source=bin/lib/instance.sh
 . "$LIB_DIR/instance.sh"
+# shellcheck source=bin/lib/provision.sh
+. "$LIB_DIR/provision.sh"
 
 usage() {
     cat <<'__HELP__'
@@ -61,8 +63,17 @@ LIFECYCLE
     gc                     Reclaim dangling images and build cache
     build <spec>           Build an image for a version Hub does not publish
 
-PLANNED (phase 4+)
-    provision | license | apikey | register | snapshot | restore | upgrade
+PROVISIONING (for calling agents — see docs/PROVISIONING.md)
+    provision <spec> [opts]     Full flow: up, licence, admin API key, register.
+                                Returns connection details. Never prompts.
+      --output json             Emit {nickname, url, api_key, ...}
+      --license FILE            Override the licence preference order
+      --timeout N               Readiness timeout (default 1800)
+    license <spec> [FILE]       Apply a licence only
+    apikey <spec>               Print the admin API key (minting if needed)
+
+PLANNED (phase 5+)
+    snapshot | restore | upgrade
 
 SPECS
     latest    highest known version
@@ -122,7 +133,7 @@ cmd_catalog() {
 }
 
 cmd_not_yet() {
-    log_error "'$1' is not implemented yet (phase 4+ — see docs/ROADMAP.md)"
+    log_error "'$1' is not implemented yet (phase 5+ — see docs/ROADMAP.md)"
     exit 1
 }
 
@@ -144,7 +155,10 @@ main() {
         rm)       require_docker; local sp="$1"; shift; instance_rm "$(catalog_resolve "$sp")" "${1:-}" ;;
         gc)       require_docker; instance_gc ;;
         build)    require_docker; local sp="$1"; shift; image_build "$(catalog_resolve "$sp")" "$@" ;;
-        provision|license|apikey|register|snapshot|restore|upgrade) cmd_not_yet "$cmd" ;;
+        provision) require_docker; local sp="$1"; shift; provision "$(catalog_resolve "$sp")" "$@" ;;
+        license)  require_docker; local sp="$1"; shift; license_apply "$(catalog_resolve "$sp")" "${1:-}" >/dev/null ;;
+        apikey)   require_docker; apikey_ensure "$(catalog_resolve "$1")" ;;
+        snapshot|restore|upgrade) cmd_not_yet "$cmd" ;;
         -h|--help|help) usage ;;
         *) log_error "unknown command: $cmd"; usage; exit 1 ;;
     esac

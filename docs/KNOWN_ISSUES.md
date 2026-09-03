@@ -110,7 +110,11 @@ The five available licences differ by feature tier, not DSS version
 `dev-*-2024.json` (offer `enterprise-fy2023-1`) first, on the reasoning that an
 older offer string is likelier to be understood by DSS 12.x than a 2025 one.
 
-**That is a hypothesis, not a measured fact.** Treat licence rejection as an
+**Partly settled 2026-09-03:** `dev-*-2024.json` was accepted first try on both
+a pulled 12.6.4 and a built 12.6.7. The fallback walk has therefore **never been
+exercised against a real rejection**, and 13.x/14.x/15.x are untested.
+
+**The rest is still hypothesis, not measured fact.** Treat licence rejection as an
 expected outcome: `provision` walks the preference order until one is accepted
 rather than failing on the first rejection, and reports which one won. Record
 the results per era — that table is the real answer.
@@ -130,12 +134,17 @@ The handoff registers instances into the user's real `dataiku-headless` config,
 which already contains API keys for production and sandbox instances
 (`design.analytics.ondku.net`, SE Cloud, several `.dataiku-sandbox.io` nodes).
 
-**A careless write destroys the user's working credentials.** Requirements:
+**A careless write destroys the user's working credentials.**
 
-- read-modify-write the `dss_instances` map; never rewrite the file wholesale
-- touch only our own `dss-<version>` entry
-- back the file up before every write
-- never change `default_instance` unless explicitly asked
+**Implemented and verified 2026-09-03** — checked against a fingerprinted
+snapshot of the real file: 6 instances became 7, none lost, none modified, every
+API key fingerprint preserved, `default_instance` untouched
+([finding](findings/provisioning-flow-verified.md)).
+
+`register_instance` backs up first, refuses to write if the existing file will
+not parse, refuses to write if any existing instance name would disappear,
+writes atomically at mode `0600`, and never touches `default_instance`. Both
+protections are mutation-tested in `tests/run_tests.sh`.
 
 ## K13. Every available licence expires 2026-09-29
 
@@ -143,5 +152,6 @@ All five share `expiresOn: 20260929` — under a month from the 2026-09-03
 planning date. When they lapse, provisioning breaks for every version at once
 and the failure will look like a DSS bug rather than an expiry.
 
-`provision` must check the expiry before applying and fail with an explicit
-"licence expired on <date>" message. `doctor` should warn as the date nears.
+**Implemented 2026-09-03.** `provision` skips expired candidates with a warning
+and refuses outright if every one has lapsed. Below 30 days it warns; it is
+currently emitting that warning, with 26 days left.

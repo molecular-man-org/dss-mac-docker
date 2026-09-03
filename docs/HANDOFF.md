@@ -4,13 +4,14 @@
 no memory of this project, this file plus [RESEARCH.md](RESEARCH.md) is
 everything you need.
 
-Last updated: 2026-09-03 (phases 1-3 complete)
+Last updated: 2026-09-03 (phases 1-4 complete)
 
 ---
 
 ## Where things stand
 
-**Phases 1, 2 and 3 are complete and verified against live containers.**
+**Phases 1-4 are complete and verified against live containers. The repo now
+does what it exists to do.**
 
 The coding gate was lifted on 2026-09-03 ("resume work using
 @dss-mac-docker/docs/HANDOFF.md"); no further permission is needed to continue.
@@ -45,9 +46,9 @@ Findings: [provisioning chain](findings/provisioning-chain-verified.md) ·
 [built image](findings/built-image-verified.md) ·
 [readiness](findings/readiness-must-probe-the-backend.md)
 
-Only `provision` / `license` / `apikey` / `register` / `snapshot` / `restore` /
-`upgrade` remain unimplemented — the phase-4 wrappers around mechanisms that are
-now all confirmed to work.
+`provision <spec> --output json` returns `{nickname, url, api_key, ...}`
+unattended, and **`dataiku-headless` connected to a provisioned instance by
+nickname alone**. Only `snapshot` / `restore` / `upgrade` (phase 5) remain.
 
 ## What this project is
 
@@ -92,21 +93,19 @@ key, and hand back `{url, api_key, nickname}`. See
 
 ## Next actions
 
-**Phase 4 — provisioning** per [ROADMAP.md](ROADMAP.md). Every underlying
-mechanism is now confirmed working by hand; phase 4 is wrapping them:
+**Everything so far has only been exercised on the 12.x era.** That is the
+biggest gap, and it is what to do next:
 
-1. `license <version>` — walk the preference order (`dev-*-2024.json` first),
-   `docker cp` then `dsscli set-license <path>`, check expiry first (K13)
-2. `apikey <version>` — `dsscli api-key-create --admin true --output json`;
-   reuse an existing key via `api-keys-list` rather than minting duplicates
-3. `register <version>` — **merge** into `~/.dataiku/config.json`, back it up
-   first; that file holds live production credentials (K12)
-4. `provision <spec> --output json` — the whole flow, emitting
-   `{nickname, url, api_key}`
+1. **Provision one 13.x and one 14.x version** end to end — e.g. `13.5.7` and
+   `14.7.3`, both build-path. They differ in base OS, Java and Python, and the
+   `dsscli` surface may differ too. This closes K7 and most of K10/K2.
+2. Wire `provision` into the `start-dss-container` skill, or add a
+   `provision-dss-instance` skill for the upgrade-planning project to call.
+3. Phase 5 (`snapshot` / `restore` / `upgrade`) only if upgrade-path testing is
+   still wanted; the consumer does not need it.
 
-Then phase 3's remaining verification: build and boot one **13.x** and one
-**14.x** version. Only the 12.x era has been exercised, and 14/15 differ in base
-OS, Java and Python.
+**Licences expire 2026-09-29** — 26 days from the last session. After that,
+provisioning fails for every version at once (K13).
 
 ## Traps that will cost you time
 

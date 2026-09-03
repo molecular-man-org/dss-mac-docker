@@ -15,6 +15,8 @@ NO_COLOR=1; export NO_COLOR
 . "$ROOT/bin/lib/image.sh"
 # shellcheck source=../bin/lib/instance.sh
 . "$ROOT/bin/lib/instance.sh"
+# shellcheck source=../bin/lib/provision.sh
+. "$ROOT/bin/lib/provision.sh"
 
 PASS=0; FAIL=0
 
@@ -175,6 +177,66 @@ for era in dss11-12 dss13 dss14-15; do
     tag="$(era_base_image "$era")"; tag="${tag##*:}"
     assert_true "$tag published" catalog_hub_tags_has "$tag"
 done
+
+# ---------------------------------------------------------------- licences --
+section "licence expiry parsing"
+LICTMP=$(mktemp -d)
+cat > "$LICTMP/dev-x-2024.json" <<'JSON'
+{"content":{"expiresOn":20260929,"licenseKind":"DATAIKU_INTERNAL"}}
+JSON
+cat > "$LICTMP/dev-x-2018.json" <<'JSON'
+{"content":{"expiresOn":20200101,"licenseKind":"DATAIKU_INTERNAL"}}
+JSON
+cat > "$LICTMP/dev-x-2025-enterprise.json" <<'JSON'
+{"content":{"expiresOn":20260929}}
+JSON
+assert_eq "parses expiresOn" 20260929 "$(license_expiry "$LICTMP/dev-x-2024.json")"
+assert_false "2026 licence is not expired" license_expired "$LICTMP/dev-x-2024.json"
+assert_true  "2020 licence IS expired"     license_expired "$LICTMP/dev-x-2018.json"
+
+section "licence preference order — 2024 first (Tim's direction)"
+# shellcheck disable=SC2034  # consumed by license_candidates in provision.sh
+LICENSE_DIR="$LICTMP"
+first=$(license_candidates | head -1 | xargs basename 2>/dev/null)
+assert_eq "2024 sorts first" "dev-x-2024.json" "$first"
+last=$(license_candidates | tail -1 | xargs basename 2>/dev/null)
+assert_eq "2018 sorts last" "dev-x-2018.json" "$last"
+assert_eq "all three listed" 3 "$(license_candidates | wc -l | tr -d ' ')"
+rm -rf "$LICTMP"
+
+# ------------------------------------------------- config merge safety (K12) --
+# ~/.dataiku/config.json holds live production API keys. These assertions exist
+# so the merge can never silently regress into a clobber.
+section "register_instance never loses existing instances (K12)"
+CFGTMP=$(mktemp -d)
+DATAIKU_CONFIG="$CFGTMP/config.json"
+cat > "$DATAIKU_CONFIG" <<'JSON'
+{"default_instance":"prod",
+ "dss_instances":{
+   "prod":{"url":"https://prod.example","api_key":"PRODKEY","no_check_certificate":false,"description":"Prod"},
+   "staging":{"url":"https://stg.example","api_key":"STGKEY","no_check_certificate":true,"description":"Stg"}}}
+JSON
+( DSS_LAB_API_KEY=NEWKEY register_instance 12.6.4 http://localhost:11640 ) >/dev/null 2>&1
+python3 - "$DATAIKU_CONFIG" <<'PYCHK'
+import json,sys
+d=json.load(open(sys.argv[1])); i=d['dss_instances']
+ok = (d['default_instance']=='prod'
+      and len(i)==3
+      and i['prod']['api_key']=='PRODKEY' and i['staging']['api_key']=='STGKEY'
+      and i['staging']['no_check_certificate'] is True
+      and i['dss-12.6.4']['url']=='http://localhost:11640'
+      and i['dss-12.6.4']['api_key']=='NEWKEY')
+sys.exit(0 if ok else 1)
+PYCHK
+if [ $? -eq 0 ]; then ok; else bad "K12: merge altered or dropped existing instances"; fi
+assert_true "a backup was written" sh -c "ls '$CFGTMP'/config.json.bak-* >/dev/null 2>&1"
+
+section "register_instance refuses to overwrite an unparseable config (K12)"
+printf 'this is not json{{{' > "$DATAIKU_CONFIG"
+( DSS_LAB_API_KEY=NEWKEY register_instance 12.6.4 http://localhost:11640 ) >/dev/null 2>&1
+if grep -q 'not json' "$DATAIKU_CONFIG"; then ok
+else bad "K12: clobbered a config it could not parse"; fi
+rm -rf "$CFGTMP"
 
 # ------------------------------------------------------- licence containment --
 # A leaked licence file is the worst thing this repo could commit, and the
