@@ -4,7 +4,7 @@
 no memory of this project, this file plus [RESEARCH.md](RESEARCH.md) is
 everything you need.
 
-Last updated: 2026-09-03 (phases 1-4 complete)
+Last updated: 2026-09-03 (v0.1.0)
 
 ---
 
@@ -48,7 +48,13 @@ Findings: [provisioning chain](findings/provisioning-chain-verified.md) ·
 
 `provision <spec> --output json` returns `{nickname, url, api_key, ...}`
 unattended, and **`dataiku-headless` connected to a provisioned instance by
-nickname alone**. Only `snapshot` / `restore` / `upgrade` (phase 5) remain.
+nickname alone**.
+
+Verified end to end on **12.6.4** (pull), **12.6.7**, **13.5.7** and **14.7.3**
+(all build). 15.x is unexercised; 11.x is best-effort.
+
+Only `snapshot` / `restore` / `upgrade` (phase 5) and seed content (phase 7,
+research only) remain.
 
 ## What this project is
 
@@ -93,19 +99,27 @@ key, and hand back `{url, api_key, nickname}`. See
 
 ## Next actions
 
-**Everything so far has only been exercised on the 12.x era.** That is the
-biggest gap, and it is what to do next:
-
-1. **Provision one 13.x and one 14.x version** end to end — e.g. `13.5.7` and
-   `14.7.3`, both build-path. They differ in base OS, Java and Python, and the
-   `dsscli` surface may differ too. This closes K7 and most of K10/K2.
-2. Wire `provision` into the `start-dss-container` skill, or add a
-   `provision-dss-instance` skill for the upgrade-planning project to call.
+1. **Seed content** (phase 7, research only, Tim's item). A provisioned
+   instance is empty and therefore a weak upgrade-test target. Start with the
+   sibling `../dataiku-upgrade-planning/dss_project_*` repos, which look like
+   exported DSS projects, before chasing internal Ansible repos.
+2. **15.x** is unexercised. 11.x is best-effort.
 3. Phase 5 (`snapshot` / `restore` / `upgrade`) only if upgrade-path testing is
    still wanted; the consumer does not need it.
 
-**Licences expire 2026-09-29** — 26 days from the last session. After that,
-provisioning fails for every version at once (K13).
+**Licences expire 2026-09-29.** After that, provisioning fails for every version
+at once (K13).
+
+## What two bugs here have in common
+
+Both the readiness race and the masked-API-key bug had the same shape: **a step
+reported success while producing something unusable**, and only a second,
+differently-timed run exposed it. `provision` exited 0 in both cases.
+
+For a machine-to-machine interface, well-formed output and a zero exit are not
+evidence of a working result. Verify the artefact by using it — which is why
+readiness probes the backend rather than nginx, and why an API key is confirmed
+with a live call rather than trusted from a listing.
 
 ## Traps that will cost you time
 
