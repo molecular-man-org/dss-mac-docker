@@ -226,8 +226,10 @@ provision() {
         fi
     fi
 
+    # Belt and braces: everything before the final emit is forced to stderr, so
+    # no docker subcommand can ever corrupt the JSON contract on stdout.
     # shellcheck disable=SC2086
-    instance_up "$v" $migrate --timeout "$timeout" || return 1
+    instance_up "$v" $migrate --timeout "$timeout" >&2 || return 1
 
     chosen=$(license_apply "$v" "$lic")
     [ -n "$chosen" ] || die "no licence was accepted by DSS $v"

@@ -93,3 +93,37 @@ the sibling project depends on it.
 - [ ] `bundle <version> <file>` — preload a project bundle
 - [ ] `docs/compatibility-matrix.md` — boot each era under Rosetta, record results
       in `evidence/`; covers K2 and the boundary versions
+
+## Phase 7 — Seed content for provisioned instances `[ ] RESEARCH ONLY`
+
+> **Do not implement yet.** Tim raised this 2026-09-03 as a research item.
+
+A freshly provisioned instance is **empty**, which makes it a poor test target:
+the upgrade-planning skill needs projects, flows, datasets and code envs present
+to scan, test compatibility against, and upgrade. An empty DSS exercises almost
+none of what its matrix checks.
+
+Research needed, in rough order of promise:
+
+1. **Dataiku internal Ansible repos** for controlling and configuring DSS nodes —
+   Tim believes these exist. **Needs a pointer**: repo names or URLs, and whether
+   this machine's credentials can reach them. Not investigated, because guessing
+   at internal repo names is not research.
+2. **Project bundles.** Already reachable from the confirmed `dsscli` surface —
+   `project-import`, `project-export`, `bundle-export`,
+   `bundle-download-archive`. This is the lowest-friction path and needs no
+   external repo: export a representative project once, import it at provision
+   time.
+3. **The sibling repos already on this machine** —
+   `../dataiku-upgrade-planning/dss_project_DSS_Upgrade_Planning_Toolkit`,
+   `dss_project_quality_analyzer`, `dss_project_DEPRECATED_TESTS_DSS_V12`. The
+   names suggest exported DSS projects intended for exactly this. Worth
+   inspecting before reaching for anything internal.
+4. **Code envs.** `dsscli code-envs-list` / `code-env-update` exist, and code
+   envs are a common upgrade-compatibility failure point, so seeded content
+   probably needs at least one.
+
+Open question for Tim: should seed content be **version-appropriate** (a project
+exported from the same DSS line) or **deliberately old** (a 12.x-era project
+imported into 14.x, which is what an upgrade actually looks like)? The second is
+a better test and is probably the point.

@@ -274,6 +274,39 @@ else
     printf 'skip  not a git repo\n'
 fi
 
+# --------------------------------------------------- docs match code (CLI) --
+# A help text that drifts from the dispatcher is how an agent ends up calling a
+# command that does not exist. Assert the two agree, both directions.
+section "every dispatched command appears in the help text"
+HELP=$("$ROOT/bin/dss-lab" --help 2>&1)
+DISPATCHED=$(sed -n '/^main()/,/^}/p' "$ROOT/bin/dss-lab" \
+    | grep -oE '^[[:space:]]+[a-z|]+\)' | tr -d ' )' | tr '|' '\n' \
+    | grep -vE '^$|^\*$' | sort -u)
+for c in $DISPATCHED; do
+    case "$c" in -h|--help|help) continue ;; esac
+    if printf '%s' "$HELP" | grep -qw -- "$c"; then ok
+    else bad "command '$c' is dispatched but missing from --help"; fi
+done
+
+section "every command the help text names is actually dispatched"
+# Only the command sections list commands; USAGE and SPECS use the same
+# indentation for the invocation line and for version-spec examples.
+HELP_CMDS=$(printf '%s' "$HELP" | awk '
+    /^[A-Z][A-Z ()+-]*$/ { sec = ($0 ~ /^(READY|LIFECYCLE|PROVISIONING|PLANNED)/) ? 1 : 0; next }
+    sec && /^    [a-z]/  { print $1 }
+' | sort -u)
+for c in $HELP_CMDS; do
+    if printf '%s' "$DISPATCHED" | grep -qx "$c"; then ok
+    else bad "help names '$c' but main() does not dispatch it"; fi
+done
+
+section "documented commands resolve (no stale names in docs)"
+for c in $(grep -ohE 'dss-lab [a-z]+' "$ROOT"/docs/*.md "$ROOT"/README.md 2>/dev/null \
+           | awk '{print $2}' | sort -u); do
+    if printf '%s' "$DISPATCHED" | grep -qx "$c"; then ok
+    else bad "docs reference 'dss-lab $c' but it is not a command"; fi
+done
+
 # ------------------------------------------------------------------ report --
 printf '\n----------------------------------------\n'
 if [ "$FAIL" -eq 0 ]; then

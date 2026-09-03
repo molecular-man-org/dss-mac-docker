@@ -71,7 +71,7 @@ image_build() {
     if ! image_present "$base"; then
         log_step "pulling build base $base (shared by every $era version built after this)"
         # shellcheck disable=SC2046
-        docker pull $(docker_platform_args) "$base" || die "failed to pull build base $base"
+        docker pull $(docker_platform_args) "$base" >&2 || die "failed to pull build base $base"
     else
         log_dim "build base already local: $base"
     fi
@@ -91,7 +91,7 @@ image_build() {
         --label "$LABEL_PREFIX.base=$base" \
         -t "$ref" \
         -f "$DSS_LAB_ROOT/docker/Dockerfile.kit" \
-        "$DSS_LAB_ROOT" || die "build failed for DSS $v"
+        "$DSS_LAB_ROOT" >&2 || die "build failed for DSS $v"
 
     log_ok "built $ref"
 }
