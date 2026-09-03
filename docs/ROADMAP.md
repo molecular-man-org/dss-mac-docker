@@ -30,22 +30,23 @@ Also delivered: `dss-lab info <spec>` (everything derived from a version) and
 > `doctor --deep` confirmed amd64 emulation actually executes. See
 > [findings/rosetta-amd64-verified.md](findings/rosetta-amd64-verified.md).
 
-## Phase 2 — Usable end to end
+## Phase 2 — Usable end to end `[x] complete 2026-09-03`
 
-- [ ] `up` with the idempotent state machine (DESIGN D4) **and the K3 migration
+- [x] `up` with the idempotent state machine (DESIGN D4) **and the K3 migration
       guard in the same change**
-- [ ] `ls`, `stop`, `logs`, `shell`, `url`, `rm`, `gc`
-- [ ] `wait` — HTTP readiness poll, long first-boot timeout
+- [x] `ls`, `stop`, `logs`, `shell`, `url`, `rm`, `gc`
+- [x] `wait` — HTTP readiness poll, long first-boot timeout
 - [ ] Memory profile written to `env-site.sh` at first boot; **measure the right
       heap on a live instance rather than guessing** (DESIGN D7)
-- [ ] `skills/{start,stop}-dss-container/SKILL.md`, `skills/list-dss-containers/SKILL.md`
-- [ ] `Makefile` `install` / `uninstall` targets; resolve K6
-- [ ] Verified against Hub's `14.4.1`
+- [x] `skills/{start,stop}-dss-container/SKILL.md`, `skills/list-dss-containers/SKILL.md`
+- [x] `Makefile` `install` / `uninstall` targets; K6 resolved by copy+substitute
+- [x] Verified against Hub's `12.6.4` (Tim's chosen example) — booted in ~50s,
+      HTTP 200, supervisord backend/ipython/nginx all RUNNING
 
 > Exit criterion: `/start-dss-container 14.4.1` works from a cold start, and
 > running it twice is a no-op that returns the URL.
 
-## Phase 3 — All 109 versions
+## Phase 3 — All 109 versions `[~] in progress`
 
 - [x] `docker/Dockerfile.kit` — **one** parameterised Dockerfile, not three.
       Deriving from a Hub era base means the era only selects `BASE_IMAGE` and

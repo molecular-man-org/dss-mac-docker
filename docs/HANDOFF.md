@@ -4,13 +4,14 @@
 no memory of this project, this file plus [RESEARCH.md](RESEARCH.md) is
 everything you need.
 
-Last updated: 2026-09-03 (phase 1 complete; provisioning direction added)
+Last updated: 2026-09-03 (phases 1-2 complete, phase 3 in progress)
 
 ---
 
 ## Where things stand
 
-**Phase 1 is complete and verified. Phase 2 has not started.**
+**Phases 1 and 2 are complete and verified against a live container. Phase 3 is
+in progress.**
 
 The coding gate was lifted on 2026-09-03 ("resume work using
 @dss-mac-docker/docs/HANDOFF.md"); no further permission is needed to continue.
@@ -28,8 +29,17 @@ dss-lab versions
 `tests/run_tests.sh` — 78 assertions, no Docker needed, mutation-tested to
 confirm it actually catches regressions. shellcheck-clean at `-S warning`.
 
-Every phase-2+ subcommand (`up`, `ls`, `build`, ...) is dispatched but exits
-with "not implemented yet".
+Lifecycle works: `up` / `ls` / `stop` / `url` / `logs` / `shell` / `rm` / `gc`,
+plus `build` for the ~95 versions Hub does not publish. The three skills are
+installed via `make install`.
+
+`dss-12.6.4` was created, booted (~50s), licensed and issued a working admin
+API key — the whole provisioning chain, proven. See
+[findings/provisioning-chain-verified.md](findings/provisioning-chain-verified.md).
+
+Only `provision` / `license` / `apikey` / `register` / `snapshot` / `restore` /
+`upgrade` remain unimplemented — the phase-4 wrappers around mechanisms that are
+now all confirmed to work.
 
 ## What this project is
 
