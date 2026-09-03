@@ -27,13 +27,31 @@ kit_available() {
     case "$code" in 200|206) return 0 ;; *) return 1 ;; esac
 }
 
-# image_build <version> [--era-base scratch|hub] [--no-cache]
+# build_base_for <version> — the image to build on top of.
+# Prefers a same-major Hub image that is already local, since pulling another
+# 3-4 GB base to build one version is the opposite of the point (KNOWN_ISSUES K4).
+build_base_for() {
+    local v="$1" preferred cand
+    preferred=$(major_base_image "$v")
+    image_present "$preferred" && { printf '%s' "$preferred"; return 0; }
+
+    # any already-present Hub image of the same major will do
+    for cand in $(catalog_hub_tags | grep "^$(version_major "$v")\." | version_sort); do
+        if image_present "dataiku/dss:$cand"; then
+            printf 'dataiku/dss:%s' "$cand"; return 0
+        fi
+    done
+    printf '%s' "$preferred"
+}
+
+# image_build <version> [--base IMAGE] [--era-base scratch] [--no-cache]
 image_build() {
     local v="$1"; shift
-    local era base pup ref extra=""
+    local era base="" pup ref extra=""
     while [ $# -gt 0 ]; do
         case "$1" in
             --no-cache) extra="$extra --no-cache"; shift ;;
+            --base)     base="$2"; shift 2 ;;
             --era-base)
                 [ "$2" = "scratch" ] && die "--era-base scratch is not implemented (see docs/ROADMAP.md phase 3)"
                 shift 2 ;;
@@ -42,7 +60,7 @@ image_build() {
     done
 
     era=$(version_era "$v") || return 1
-    base=$(era_base_image "$era")
+    [ -n "$base" ] || base=$(build_base_for "$v")
     pup=$(era_puppeteer "$era")
     ref=$(image_local "$v")
 
@@ -51,11 +69,11 @@ image_build() {
     log_ok "kit available"
 
     if ! image_present "$base"; then
-        log_step "pulling era base $base (shared by every $era version)"
+        log_step "pulling build base $base (shared by every $era version built after this)"
         # shellcheck disable=SC2046
-        docker pull $(docker_platform_args) "$base" || die "failed to pull era base $base"
+        docker pull $(docker_platform_args) "$base" || die "failed to pull build base $base"
     else
-        log_dim "era base present: $base"
+        log_dim "build base already local: $base"
     fi
 
     log_step "building $ref from $base"
@@ -70,6 +88,7 @@ image_build() {
         --label "$LABEL_PREFIX.managed=true" \
         --label "$LABEL_PREFIX.version=$v" \
         --label "$LABEL_PREFIX.era=$era" \
+        --label "$LABEL_PREFIX.base=$base" \
         -t "$ref" \
         -f "$DSS_LAB_ROOT/docker/Dockerfile.kit" \
         "$DSS_LAB_ROOT" || die "build failed for DSS $v"

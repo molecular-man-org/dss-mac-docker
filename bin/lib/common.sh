@@ -94,14 +94,30 @@ version_era() {
     fi
 }
 
-# era_base_image <era> — nearest published Hub image in the same era, reused as
-# the build base so the emulated R compile is skipped entirely (DESIGN.md D3).
+# era_base_image <era> — the era-level fallback base. Prefer major_base_image:
+# an era spans two majors, and a 14.x kit on a 15.0.0 base would inherit 15's
+# Python. Kept because the era is still the right granularity for the toolchain
+# metadata (puppeteer pin, repo flag).
 era_base_image() {
     case "$1" in
         dss11-12) printf 'dataiku/dss:12.6.4' ;;
         dss13)    printf 'dataiku/dss:13.4.4' ;;
         dss14-15) printf 'dataiku/dss:15.0.0' ;;
         *) log_error "unknown era: $1"; return 1 ;;
+    esac
+}
+
+# major_base_image <version> — newest Hub tag sharing the version's major.
+# Same-major keeps the interpreter and toolchain aligned with what that DSS
+# line expects, which an era-level base does not guarantee (DESIGN.md D3).
+major_base_image() {
+    case "$(version_major "$1")" in
+        11) printf 'dataiku/dss:11.2.0' ;;
+        12) printf 'dataiku/dss:12.6.4' ;;
+        13) printf 'dataiku/dss:13.4.4' ;;
+        14) printf 'dataiku/dss:14.7.0' ;;
+        15) printf 'dataiku/dss:15.0.0' ;;
+        *)  era_base_image "$(version_era "$1")" ;;
     esac
 }
 

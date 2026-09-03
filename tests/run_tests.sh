@@ -158,6 +158,18 @@ section "image_ref follows catalog_source"
 assert_eq "12.6.4 is on Hub"   "dataiku/dss:12.6.4"        "$(image_ref 12.6.4)"
 assert_eq "12.3.1 is built"    "dss-mac-docker/dss:12.3.1" "$(image_ref 12.3.1)"
 
+section "major_base_image keeps the major aligned"
+assert_eq "11.4.5" "dataiku/dss:11.2.0" "$(major_base_image 11.4.5)"
+assert_eq "12.3.1" "dataiku/dss:12.6.4" "$(major_base_image 12.3.1)"
+assert_eq "13.5.7" "dataiku/dss:13.4.4" "$(major_base_image 13.5.7)"
+assert_eq "14.7.3" "dataiku/dss:14.7.0" "$(major_base_image 14.7.3)"
+assert_eq "15.0.0" "dataiku/dss:15.0.0" "$(major_base_image 15.0.0)"
+for v in 11.4.5 12.3.1 13.5.7 14.7.3 15.0.0; do
+    b="$(major_base_image "$v")"; t="${b##*:}"
+    assert_eq "base of $v shares its major" "$(version_major "$v")" "$(version_major "$t")"
+    assert_true "base $t is a real Hub tag" catalog_hub_tags_has "$t"
+done
+
 section "every era base is a real, pullable Hub tag"
 for era in dss11-12 dss13 dss14-15; do
     tag="$(era_base_image "$era")"; tag="${tag##*:}"

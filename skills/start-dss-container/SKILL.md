@@ -36,9 +36,11 @@ user to confirm anything.**
 
 - A version not on Docker Hub is **built** — 95 of the 109 supported versions
   are. That takes several minutes.
-- **First boot is slow.** DSS is x86-64 only, so it runs emulated under Rosetta,
-  and the first start runs the installer plus R integration. Ten minutes or more
-  is normal; the command waits and reports progress. Do not assume it has hung.
+- **First boot takes about a minute** for a pulled image — measured at ~50s for
+  12.6.4. The images ship DSS pre-installed, so startup only initialises the
+  datadir. A **built** version does more work on first boot, and 14.x/15.x is
+  unmeasured, so allow longer there. The command waits and reports progress;
+  do not assume it has hung.
 
 ## If it refuses
 

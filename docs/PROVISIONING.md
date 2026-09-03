@@ -58,6 +58,9 @@ cd "$DSS_DATADIR"
 # 4. admin API key, via CLI if supported else REST once login works
 ```
 
+Tim then supplied the **real command surface** from a live DSS instance, which
+settles most of it — see "Verified CLI surface" below.
+
 Three notes before anyone runs it:
 
 1. **The datadir path is different in our containers.** The official DSS image
@@ -71,22 +74,48 @@ Three notes before anyone runs it:
    requires a login, so a known admin password is the fallback if the API-key
    path fails. It was missing from this document until Tim raised it.
 
-`dssadmin set-license-file` is likely preferable to copying the file, because it
-should validate and reload rather than requiring a restart — but its existence
-and exact spelling are **unconfirmed for the versions in range**, and Tim notes
-they vary by version.
+## Verified CLI surface
 
-**These are hypotheses.** The moment a container is running, enumerate the real
-surface rather than guessing:
+From a live DSS instance (Tim, 2026-09-03). This replaces the guesses above.
+
+**`dssadmin` has no licence action.** Its actions are integrations
+(`install-R-integration`, `install-spark-integration`, …), `build-base-image`,
+`regenerate-config`, `encrypt-password`, `run-diagnosis`,
+`verify-installation-integrity`. So `dssadmin set-license-file` **does not
+exist** — that guess was wrong.
+
+**`dsscli` is the tool for all three provisioning steps:**
+
+| Need | Command |
+| --- | --- |
+| Apply licence (step 3) | `dsscli set-license` |
+| Admin password (step 2) | `dsscli user-edit` |
+| API key (step 4) | `dsscli api-key-create` |
+| Check existing keys (idempotency) | `dsscli api-keys-list` |
+| Reload after config change | `dsscli config-cache-invalidate` |
+
+Also available and useful later: `user-create`, `groups-list`, `project-import`,
+`bundle-export` (phase 6 bundle preloading).
+
+Still to confirm, because `--help` output at this level does not show them:
+
+- exact flags for `dsscli set-license` (file path as positional, or a flag?)
+- exact flags for `dsscli user-edit` to set a password — and whether it wants a
+  cleartext password or one hashed by `dssadmin encrypt-password`
+- whether `set-license` reloads on its own or still needs a restart
+
+Enumerate per version rather than assuming, since Tim notes the commands vary:
 
 ```bash
-docker exec <container> /home/dataiku/dss/bin/dsscli --help
-docker exec <container> /home/dataiku/dss/bin/dssadmin --help
+docker exec <container> /home/dataiku/dss/bin/dsscli set-license -h
+docker exec <container> /home/dataiku/dss/bin/dsscli api-key-create -h
+docker exec <container> /home/dataiku/dss/bin/dsscli user-edit -h
 ```
 
-Record the answers per era in `docs/findings/`. Command availability differing
-across DSS 11/12/13/14/15 is exactly the kind of thing that silently breaks
-provisioning for one line only.
+> The paste came from a manual install (`dss_data`, argparse "optional
+> arguments" — so Python < 3.10, an older DSS). Confirm the same surface exists
+> on each era in range; a command present in 12.x but renamed in 15.x would break
+> provisioning for one line only. Record results in `docs/findings/`.
 
 ## Step 3 — licence
 
@@ -95,9 +124,15 @@ Dropping a file there and restarting is sufficient, and works identically across
 every version in range. `installer.sh -l <file>` is the alternative at first
 install.
 
+Two routes, in preference order:
+
 ```bash
+# preferred: dsscli validates and may reload without a restart
+docker exec <container> /home/dataiku/dss/bin/dsscli set-license <args>
+
+# fallback, confirmed to work on every version in range:
 docker cp <licence> <container>:/home/dataiku/dss/config/license.json
-# then restart DSS inside the container
+docker restart <container>
 ```
 
 **Licence source** is an untracked folder, currently
