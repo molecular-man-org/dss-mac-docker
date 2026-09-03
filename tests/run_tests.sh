@@ -138,6 +138,29 @@ assert_false "unknown line"    catalog_resolve 99
 assert_false "garbage"         catalog_resolve "not-a-version"
 assert_false "empty"           catalog_resolve ""
 
+# ------------------------------------------------------- licence containment --
+# A leaked licence file is the worst thing this repo could commit, and the
+# obvious pattern (*license*.json) matches none of the real filenames. Assert on
+# realistic names so the gitignore cannot silently regress.
+section "licence files cannot be committed"
+if git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+    for name in dev-timhonker-2024.json dev-timhonker-2025-enterprise.json \
+                dev-anyuser-2018.json license.json licence.json; do
+        if git -C "$ROOT" check-ignore -q "$ROOT/$name" 2>/dev/null; then ok
+        else bad "licence containment: '$name' would NOT be ignored"; fi
+    done
+    for name in licenses/x.json licences/x.json; do
+        if git -C "$ROOT" check-ignore -q "$ROOT/$name" 2>/dev/null; then ok
+        else bad "licence containment: '$name' would NOT be ignored"; fi
+    done
+    # Guard against over-reach: tracked data files must stay visible.
+    if git -C "$ROOT" check-ignore -q "$ROOT/data/versions-11plus.txt" 2>/dev/null
+    then bad "gitignore is too broad: data/versions-11plus.txt is ignored"
+    else ok; fi
+else
+    printf 'skip  not a git repo\n'
+fi
+
 # ------------------------------------------------------------------ report --
 printf '\n----------------------------------------\n'
 if [ "$FAIL" -eq 0 ]; then

@@ -5,7 +5,12 @@ evidence/*
 .cache/
 *.tar.gz
 
-# Licence files — never commit these
+# Licence files — never commit these.
+# Real DSS licence files are named like `dev-timhonker-2024.json`, so matching
+# on the word "licence" alone catches nothing. The repo has no legitimate
+# top-level JSON, so the root glob is the reliable guard.
+/*.json
+dev-*.json
 *license*.json
 *licence*.json
 licenses/
