@@ -31,6 +31,7 @@ agent.
 | --- | --- | --- | --- |
 | 12.x | 12.6.4 | pull | provisioned, licensed, admin key works |
 | 12.x | 12.6.7 | build | provisioned, licensed, admin key works |
+| 13.x | 13.5.7 | build | provisioned, licensed, admin key works |
 | 14.x | 14.7.3 | build | provisioned, licensed, admin key works |
 
 `dataiku-headless` connected to a provisioned instance **by nickname alone**,
@@ -46,10 +47,28 @@ with no credential passed between agents.
   without `--migrate`, because DSS migrates in place with no downgrade.
 - Licence files are gitignored by patterns matching their real names.
 
+### Fixed during release preparation
+
+- `docker pull` writes progress to stdout, which corrupted
+  `provision --output json` whenever a base image was not already cached.
+- DSS 13.x **masks** API key secrets in `api-keys-list` (`******`) where 12.x
+  discloses them, so the reuse path stored a six-asterisk placeholder as a
+  credential. Keys are now validated by using them
+  ([finding](docs/findings/api-keys-are-masked-on-some-versions.md)).
+- `dsscli` prefixes stdout with a log line on first invocation, breaking JSON
+  parsing.
+- Readiness probed nginx rather than the DSS backend, so `dsscli` calls could run
+  before the backend was listening
+  ([finding](docs/findings/readiness-must-probe-the-backend.md)).
+
 ### Known limitations
 
-- **13.x is unverified** at time of tagging.
-- **11.x and 15.x are entirely unexercised.**
+- **15.x is unexercised.** 11.x is best-effort.
+- API keys differ by line — 32 chars on 12.x, 39 on 13.x/14.x. Assume nothing
+  about length.
+- A key masked by DSS cannot be deleted programmatically, because
+  `api-key-delete` takes the secret. `dss-13.5.7` carries one orphaned key from
+  before the fix; it does not accumulate further.
 - The licence fallback order has never run against a real rejection —
   `dev-*-2024.json` was accepted first try everywhere it was tried.
 - **All available licences expire 2026-09-29.** After that, provisioning fails

@@ -217,6 +217,14 @@ assert_eq "2018 sorts last" "dev-x-2018.json" "$last"
 assert_eq "all three listed" 3 "$(license_candidates | wc -l | tr -d ' ')"
 rm -rf "$LICTMP"
 
+section "apikey_valid rejects masked and short secrets"
+assert_false "empty rejected"      apikey_valid ""
+assert_false "all-asterisk rejected" apikey_valid "******"
+assert_false "partially masked"    apikey_valid "abc***def***ghi***xyz"
+assert_false "too short"           apikey_valid "abc123"
+assert_true  "32-char key ok"      apikey_valid "0123456789abcdef0123456789abcdef"
+assert_true  "39-char key ok"      apikey_valid "0123456789abcdef0123456789abcdef0123456"
+
 # ------------------------------------------------- config merge safety (K12) --
 # ~/.dataiku/config.json holds live production API keys. These assertions exist
 # so the merge can never silently regress into a clobber.

@@ -106,7 +106,8 @@ none of what its matrix checks.
 
 Research needed, in rough order of promise:
 
-1. **Dataiku internal Ansible repos** for controlling and configuring DSS nodes —
+1. **Dataiku internal Ansible repos** for controlling and configuring DSS nodes
+—
    Tim believes these exist. **Needs a pointer**: repo names or URLs, and whether
    this machine's credentials can reach them. Not investigated, because guessing
    at internal repo names is not research.

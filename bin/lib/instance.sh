@@ -100,8 +100,11 @@ instance_wait() {
             docker logs --tail 20 "$(container_name "$v")" 2>&1 | sed 's/^/    /' >&2
             return 1
         fi
+        # curl prints 000 via -w AND exits non-zero when it cannot connect, so a
+        # `|| printf 000` fallback would render "000000". Normalise instead.
         code=$(curl -sS -o /dev/null -m 5 -w '%{http_code}' \
-                "http://localhost:$port$DSS_READY_PATH" 2>/dev/null || printf '000')
+                "http://localhost:$port$DSS_READY_PATH" 2>/dev/null) || true
+        [ -n "$code" ] || code=000
         case "$code" in
             200|401|403)
                 log_ok "DSS backend is ready (HTTP $code) after ${waited}s"; return 0 ;;

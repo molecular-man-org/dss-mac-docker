@@ -114,7 +114,8 @@ older offer string is likelier to be understood by DSS 12.x than a 2025 one.
 a pulled 12.6.4 and a built 12.6.7. The fallback walk has therefore **never been
 exercised against a real rejection**, and 13.x/14.x/15.x are untested.
 
-**The rest is still hypothesis, not measured fact.** Treat licence rejection as an
+**The rest is still hypothesis, not measured fact.** Treat licence rejection as
+an
 expected outcome: `provision` walks the preference order until one is accepted
 rather than failing on the first rejection, and reports which one won. Record
 the results per era — that table is the real answer.

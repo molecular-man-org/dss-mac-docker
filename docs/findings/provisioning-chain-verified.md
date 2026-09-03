@@ -2,7 +2,8 @@
 
 **Date:** 2026-09-03
 **Status:** verified against a live container
-**Closes:** [KNOWN_ISSUES](../KNOWN_ISSUES.md) K11 · settles the phase-4 command surface
+**Closes:** [KNOWN_ISSUES](../KNOWN_ISSUES.md) K11 ·
+settles the phase-4 command surface
 
 Every step of [PROVISIONING.md](../PROVISIONING.md) was executed against a real
 `dss-12.6.4` container. Nothing below is inferred.

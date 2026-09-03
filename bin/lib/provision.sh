@@ -103,36 +103,107 @@ print((d-datetime.date.today()).days)
 
 # ---------------------------------------------------------------- API keys --
 
-# apikey_ensure <version> — reuse our labelled admin key if present, else mint.
-# Without this, every provision call would leave another key behind.
-apikey_ensure() {
-    local v="$1" cname existing
-    cname=$(container_name "$v")
+# dsscli writes an "[INFO] [dsscli] Creating an admin key for dsscli" line to
+# STDOUT on its first invocation in a container, ahead of the JSON. Strip
+# anything before the first [ or { rather than trusting the stream to be clean.
+_json_after_noise() {
+    python3 -c "
+import json,sys
+raw=sys.stdin.read()
+i=min([x for x in (raw.find('['), raw.find('{')) if x!=-1], default=-1)
+if i<0: sys.exit(1)
+try: json.dump(json.loads(raw[i:]), sys.stdout)
+except Exception: sys.exit(1)
+"
+}
 
-    existing=$(docker exec "$cname" "$DSS_DATADIR/bin/dsscli" api-keys-list --output json 2>/dev/null \
-        | APIKEY_LABEL="$APIKEY_LABEL" python3 -c "
+# apikey_valid <value> — DSS masks secrets in some versions' api-keys-list
+# output: 13.x returns "******" where 12.x returns the real key. A masked value
+# is a non-credential, and storing one hands the caller a key that 401s.
+apikey_valid() {
+    case "$1" in
+        ''|*'*'*) return 1 ;;                 # empty, or contains a mask char
+    esac
+    [ "${#1}" -ge 16 ]
+}
+
+# apikey_from_config <nickname> — the key we previously recorded ourselves.
+# This is the reliable source: it is the only place the plaintext secret is
+# guaranteed to survive, since some DSS versions mask it on read-back.
+apikey_from_config() {
+    [ -f "$DATAIKU_CONFIG" ] || return 1
+    NICK="$1" CFG="$DATAIKU_CONFIG" python3 -c "
 import json,os,sys
-try: d=json.load(sys.stdin)
-except Exception: sys.exit(0)
-for it in (d if isinstance(d,list) else [d]):
-    if it.get('label')==os.environ['APIKEY_LABEL'] and it.get('admin'):
-        print(it.get('key','')); break
-" 2>/dev/null)
+try: d=json.load(open(os.environ['CFG']))
+except Exception: sys.exit(1)
+e=(d.get('dss_instances') or {}).get(os.environ['NICK'])
+if not e or not e.get('api_key'): sys.exit(1)
+print(e['api_key'])
+" 2>/dev/null
+}
 
-    if [ -n "$existing" ]; then
-        log_dim "reusing existing admin API key labelled '$APIKEY_LABEL'" >&2
-        printf '%s' "$existing"; return 0
+# apikey_works <url> <key> — the only trustworthy validation is using it.
+apikey_works() {
+    local code
+    code=$(curl -sS -o /dev/null -m 10 -u "$2:" -w '%{http_code}' \
+            "$1$DSS_READY_PATH" 2>/dev/null) || true
+    [ "$code" = "200" ]
+}
+
+# apikey_ensure <version> — return a WORKING admin key, minting only if needed.
+#
+# Order matters. A previously recorded key is checked first and confirmed by
+# actually calling the API, because `api-keys-list` cannot be trusted to
+# disclose the secret: DSS 13.x returns "******" where 12.x returns the real
+# key. Believing that listing once stored a six-asterisk string as a credential.
+apikey_ensure() {
+    local v="$1" cname url key
+    cname=$(container_name "$v")
+    url=$(instance_url "$v" | tr -d "\n")
+
+    # 1. our own record, proven by use
+    key=$(apikey_from_config "$(container_name "$v")" || true)
+    if [ -n "$key" ] && apikey_valid "$key" && apikey_works "$url" "$key"; then
+        log_dim "reusing the recorded admin API key" >&2
+        printf '%s' "$key"; return 0
     fi
 
+    # 2. a listing, but only where this DSS version discloses the secret
+    key=$(docker exec "$cname" "$DSS_DATADIR/bin/dsscli" api-keys-list --output json 2>/dev/null \
+          | _json_after_noise 2>/dev/null \
+          | APIKEY_LABEL="$APIKEY_LABEL" python3 -c "
+import json,os,sys
+for it in json.load(sys.stdin):
+    if it.get('label')==os.environ['APIKEY_LABEL'] and it.get('admin'):
+        print(it.get('key','')); break
+" 2>/dev/null) || true
+    if [ -n "$key" ] && apikey_valid "$key" && apikey_works "$url" "$key"; then
+        log_dim "reusing existing admin API key labelled '$APIKEY_LABEL'" >&2
+        printf '%s' "$key"; return 0
+    fi
+
+    # 3. mint. On versions that mask, the old key cannot be deleted by id
+    # (api-key-delete takes the secret), so a replaced key is left behind.
     log_step "minting an admin API key" >&2
-    docker exec "$cname" "$DSS_DATADIR/bin/dsscli" api-key-create \
-        --admin true --label "$APIKEY_LABEL" \
-        --description "provisioned by dss-lab" --output json 2>/dev/null \
-      | python3 -c "
+    key=$(docker exec "$cname" "$DSS_DATADIR/bin/dsscli" api-key-create \
+            --admin true --label "$APIKEY_LABEL" \
+            --description "provisioned by dss-lab" --output json 2>/dev/null \
+          | _json_after_noise 2>/dev/null \
+          | python3 -c "
 import json,sys
 d=json.load(sys.stdin); d=d[0] if isinstance(d,list) else d
-print(d['key'])
-" 2>/dev/null
+print(d.get('key',''))
+" 2>/dev/null)
+
+    if ! apikey_valid "$key"; then
+        log_error "DSS $v returned an unusable API key (length ${#key})" >&2
+        return 1
+    fi
+    if ! apikey_works "$url" "$key"; then
+        log_error "the minted API key does not authenticate against $url" >&2
+        return 1
+    fi
+    printf '%s' "$key"
 }
 
 # -------------------------------------------------------------- registration --
