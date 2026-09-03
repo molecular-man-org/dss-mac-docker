@@ -27,12 +27,17 @@ agent.
 
 ### Verified
 
-| Era | Version | Path | Result |
-| --- | --- | --- | --- |
-| 12.x | 12.6.4 | pull | provisioned, licensed, admin key works |
-| 12.x | 12.6.7 | build | provisioned, licensed, admin key works |
-| 13.x | 13.5.7 | build | provisioned, licensed, admin key works |
-| 14.x | 14.7.3 | build | provisioned, licensed, admin key works |
+| Era | Version | Path | Port | Result |
+| --- | --- | --- | --- | --- |
+| 11.x | 11.2.0 | pull | 10200 | provisioned, licensed, admin key works |
+| 12.x | 12.6.4 | pull | 11640 | provisioned, licensed, admin key works |
+| 12.x | 12.6.7 | build | 11670 | provisioned, licensed, admin key works |
+| 13.x | 13.5.7 | build | 12570 | provisioned, licensed, admin key works |
+| 14.x | 14.7.3 | build | 13730 | provisioned, licensed, admin key works |
+
+All four release eras (`dss11-12`, `dss13`, `dss14-15`) exercised on both the
+pull and build paths. `dev-timhonker-2024.json` was accepted by every one.
+Stored API keys survive a container stop/start.
 
 `dataiku-headless` connected to a provisioned instance **by nickname alone**,
 with no credential passed between agents.
@@ -63,7 +68,7 @@ with no credential passed between agents.
 
 ### Known limitations
 
-- **15.x is unexercised.** 11.x is best-effort.
+- **15.x is unexercised** — it is the only line with no verified version.
 - API keys differ by line — 32 chars on 12.x, 39 on 13.x/14.x. Assume nothing
   about length.
 - A key masked by DSS cannot be deleted programmatically, because

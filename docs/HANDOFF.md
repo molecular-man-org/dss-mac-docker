@@ -50,8 +50,9 @@ Findings: [provisioning chain](findings/provisioning-chain-verified.md) ·
 unattended, and **`dataiku-headless` connected to a provisioned instance by
 nickname alone**.
 
-Verified end to end on **12.6.4** (pull), **12.6.7**, **13.5.7** and **14.7.3**
-(all build). 15.x is unexercised; 11.x is best-effort.
+Verified end to end on **11.2.0** and **12.6.4** (pull), and **12.6.7**,
+**13.5.7**, **14.7.3** (build) — all four release eras, both paths. **15.x is
+the only unexercised line.**
 
 Only `snapshot` / `restore` / `upgrade` (phase 5) and seed content (phase 7,
 research only) remain.
@@ -103,7 +104,7 @@ key, and hand back `{url, api_key, nickname}`. See
    instance is empty and therefore a weak upgrade-test target. Start with the
    sibling `../dataiku-upgrade-planning/dss_project_*` repos, which look like
    exported DSS projects, before chasing internal Ansible repos.
-2. **15.x** is unexercised. 11.x is best-effort.
+2. **15.x** is the only unexercised line (`15.0.0`, pull path).
 3. Phase 5 (`snapshot` / `restore` / `upgrade`) only if upgrade-path testing is
    still wanted; the consumer does not need it.
 
