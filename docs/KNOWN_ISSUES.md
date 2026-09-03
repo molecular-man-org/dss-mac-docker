@@ -94,3 +94,46 @@ a real container. Phase-1 docker interaction is no longer theoretical.
 
 Still true for **phase 2 onward** — nothing has yet pulled, built or run a DSS
 image. Treat the first `up` as a bring-up.
+
+## K10. Which licence offer strings older DSS accepts — UNVERIFIED
+
+The five available licences differ by feature tier, not DSS version
+(PROVISIONING §"Choosing the appropriate licence"). Tim's direction is to try
+`dev-*-2024.json` (offer `enterprise-fy2023-1`) first, on the reasoning that an
+older offer string is likelier to be understood by DSS 12.x than a 2025 one.
+
+**That is a hypothesis, not a measured fact.** Treat licence rejection as an
+expected outcome: `provision` walks the preference order until one is accepted
+rather than failing on the first rejection, and reports which one won. Record
+the results per era — that table is the real answer.
+
+## K11. Licences carry `instanceId: devl1-timhonker` — UNVERIFIED
+
+Every licence names an instance id. If DSS validates it against its own instance
+id, a freshly-installed container may reject all five and the whole provisioning
+flow stops at step 3.
+
+Cheap to settle as soon as one container boots. Settle it early — it invalidates
+the design if it goes the wrong way.
+
+## K12. `~/.dataiku/config.json` holds live production credentials
+
+The handoff registers instances into the user's real `dataiku-headless` config,
+which already contains API keys for production and sandbox instances
+(`design.analytics.ondku.net`, SE Cloud, several `.dataiku-sandbox.io` nodes).
+
+**A careless write destroys the user's working credentials.** Requirements:
+
+- read-modify-write the `dss_instances` map; never rewrite the file wholesale
+- touch only our own `dss-<version>` entry
+- back the file up before every write
+- never change `default_instance` unless explicitly asked
+
+## K13. Every available licence expires 2026-09-29
+
+All five share `expiresOn: 20260929` — under a month from the 2026-09-03
+planning date. When they lapse, provisioning breaks for every version at once
+and the failure will look like a DSS bug rather than an expiry.
+
+`provision` must check the expiry before applying and fail with an explicit
+"licence expired on <date>" message. `doctor` should warn as the date nears.

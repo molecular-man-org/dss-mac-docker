@@ -1,12 +1,16 @@
 # dss-mac-docker
 
 Run **any Dataiku DSS version from 11.0.0 to 15.0.0** on macOS with Docker
-Desktop, driven by a Claude Code skill:
+Desktop — as a provisioning backend for other agents, or by hand:
 
 ```text
-/start-dss-container 12.3.0
-"create a new instance of DSS v12.3.0"
+dss-lab provision 12.3.1 --output json   # {url, api_key, nickname}
+/start-dss-container 12.3.0              # or just ask for one
 ```
+
+Its main consumer is the `dss-headless-upgrade-planning-skill` project, which
+needs old DSS versions stood up on demand to test compatibility matrices
+against. See [docs/PROVISIONING.md](docs/PROVISIONING.md).
 
 > **Status: planned, not built.** Research and design are complete and verified;
 > no implementation code exists yet. Start at
@@ -57,7 +61,8 @@ which skips the expensive R build entirely.
 | [RESEARCH.md](docs/RESEARCH.md) | Verified findings, with how each was checked |
 | [DESIGN.md](docs/DESIGN.md) | Architecture and the reasoning behind it |
 | [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) | Risks, traps, and open unknowns |
-| [ROADMAP.md](docs/ROADMAP.md) | Five phases with exit criteria |
+| [PROVISIONING.md](docs/PROVISIONING.md) | **The contract with calling agents** |
+| [ROADMAP.md](docs/ROADMAP.md) | Six phases with exit criteria |
 
 ## Layout
 

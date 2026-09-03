@@ -1,7 +1,9 @@
 # Roadmap
 
-Five phases. Phase 2 is the first point where the tool is usable at all; phase 3
-is the first point where it is useful for its main purpose.
+Six phases. Phase 2 is the first point where the tool is usable at all; phase 3
+unlocks the ~95 versions that are not on Docker Hub; **phase 4 is the point of
+the repo** — the machine-to-machine provisioning contract the sibling
+upgrade-planning project depends on.
 
 Status legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified
 
@@ -52,15 +54,32 @@ Also delivered: `dss-lab info <spec>` (everything derived from a version) and
 - [ ] Verified on a non-Hub version per era — suggest `12.6.7`, `13.5.7`, `14.7.3`
       (also resolves K7)
 
-## Phase 4 — Upgrade paths
+## Phase 4 — Provisioning (the point of the repo)
+
+Serves [PROVISIONING.md](PROVISIONING.md). Promoted above upgrade paths because
+the sibling project depends on it.
+
+- [ ] `license <version>` — walk the preference order (`dev-*-2024.json` first),
+      `docker cp` into `config/license.json`, restart, verify DSS accepted it
+- [ ] Expiry pre-check — fail loudly rather than let DSS report it obliquely (K13)
+- [ ] `apikey <version>` — `dsscli api-key-create --admin true --output json`;
+      reuse an existing key rather than minting a duplicate
+- [ ] `register <version>` — merge-safe write into `~/.dataiku/config.json`,
+      with a backup first (K12)
+- [ ] `provision <spec> [--output json]` — the whole flow end to end
+- [ ] Settle K11 (licence `instanceId` binding) at the first booted container
+
+> Exit criterion: the upgrade-planning skill asks for DSS 12.3.1 and gets back a
+> working `{url, api_key, nickname}` without a human touching anything.
+
+## Phase 5 — Upgrade paths
 
 - [ ] `snapshot` / `restore` — volume clone
 - [ ] `upgrade <from-version> <to-version>` — snapshot, then let `run.sh` migrate
 - [ ] Verified on a real 13.x → 14.x migration
 
-## Phase 5 — Customer repro and evidence
+## Phase 6 — Evidence
 
-- [ ] `license <version> <file>` — inject an enterprise licence
 - [ ] `bundle <version> <file>` — preload a project bundle
 - [ ] `docs/compatibility-matrix.md` — boot each era under Rosetta, record results
       in `evidence/`; covers K2 and the boundary versions

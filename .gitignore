@@ -4,3 +4,9 @@ evidence/*
 !evidence/.gitkeep
 .cache/
 *.tar.gz
+
+# Licence files — never commit these
+*license*.json
+*licence*.json
+licenses/
+licences/

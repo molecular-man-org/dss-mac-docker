@@ -4,7 +4,7 @@
 no memory of this project, this file plus [RESEARCH.md](RESEARCH.md) is
 everything you need.
 
-Last updated: 2026-09-03 (phase 1 complete)
+Last updated: 2026-09-03 (phase 1 complete; provisioning direction added)
 
 ---
 
@@ -34,8 +34,16 @@ with "not implemented yet".
 ## What this project is
 
 A macOS + Docker Desktop toolkit for running **any DSS version from 11.0.0 to
-15.0.0** (109 versions), driven by a Claude Code skill so the user can type
-`/start-dss-container 12.3.0` or "create a new instance of DSS v12.3.0".
+15.0.0** (109 versions).
+
+**Its primary consumer is another Claude project, not a human**:
+`~/source_code/dataiku-upgrade-planning/dss-headless-upgrade-planning-skill`
+tests its compatibility matrix against older DSS versions and calls this repo to
+provision them — pull or start the container, apply a licence, mint an admin API
+key, and hand back `{url, api_key, nickname}`. See
+**[PROVISIONING.md](PROVISIONING.md)**, which is the contract that matters most.
+
+`/start-dss-container 12.3.0` is the human-facing veneer over the same path.
 
 ## Decisions already made — do not relitigate
 
@@ -51,6 +59,9 @@ A macOS + Docker Desktop toolkit for running **any DSS version from 11.0.0 to
 | State | Docker labels only, no state file | DESIGN D2 |
 | Datadir | named volumes only, never macOS bind mounts | DESIGN D5 |
 | `base_dss` tarballs | out of scope | RESEARCH §5 |
+| Primary interface | machine-to-machine `provision`, JSON out | user, 2026-09-03 |
+| Licence order | `dev-*-2024.json` **first**, then fall back | user, 2026-09-03 |
+| Agent handoff | register in `~/.dataiku/config.json`, pass a nickname | DESIGN D8 |
 
 ## The two findings that shaped everything
 
@@ -82,6 +93,14 @@ no-op that returns the URL.
 
 Good first target is `14.4.1` — it is on Hub, so phase 2 needs no build path.
 
+**Settle K11 the moment the first container boots**: the licences carry
+`instanceId: devl1-timhonker`, and if DSS enforces that, the whole provisioning
+flow dies at step 3. It is a two-minute check that can invalidate the design, so
+do it before building anything on top.
+
+Phase 3 (build) is on the critical path for the real consumer — the example the
+user gave, DSS 12.3.1, is **not** on Docker Hub.
+
 ## Traps that will cost you time
 
 - **`run.sh` migrates datadirs irreversibly and silently** when the version
@@ -101,5 +120,19 @@ Good first target is `14.4.1` — it is on Hub, so phase 2 needs no build path.
 
 ## Verify-before-trusting
 
-Marked **UNVERIFIED** in KNOWN_ISSUES: symlinked skills (K6), Rosetta boot per
-era (K2), Java 8 recipe against late 12.x (K7), `base_dss` semantics (K8).
+Marked **UNVERIFIED** in KNOWN_ISSUES: symlinked skills (K6), DSS actually
+booting under Rosetta (K2), Java 8 recipe against late 12.x (K7), `base_dss`
+semantics (K8), licence offer-string compatibility (K10), licence `instanceId`
+binding (K11).
+
+Two hazards that are *verified* and dangerous rather than merely unknown:
+
+- **K12** — `~/.dataiku/config.json` holds the user's live production API keys.
+  Merge into it; never rewrite it.
+- **K13** — every available licence expires **2026-09-29**. After that,
+  provisioning breaks for every version at once.
+
+Mechanisms that are **confirmed** and need no further research: licence goes to
+`DATA_DIR/config/license.json`; `dsscli api-key-create --admin true --output
+json` needs no prior credential; `dataiku-headless` reads `url` / `api_key` /
+nickname from `~/.dataiku/config.json`.

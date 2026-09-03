@@ -152,3 +152,33 @@ more. On first boot `up` writes a reduced backend heap into
 
 Sizing is deliberately left as a phase-2 measurement rather than a guess — the
 right heap has to come from watching a real instance, not from arithmetic.
+
+## D8. Provisioning is the primary interface
+
+The main consumer is another Claude project, not a human
+([PROVISIONING.md](PROVISIONING.md)). That inverts several defaults:
+
+- **Output is structured.** `provision --output json` emits
+  `{nickname, url, api_key, ...}`. Human-readable output is the secondary mode.
+- **Nothing may prompt.** Already true of `up` by requirement (D4); it now also
+  binds licence application and key minting.
+- **Idempotency extends to credentials.** Re-provisioning an existing instance
+  returns its existing details rather than minting a second API key.
+- **The handoff is by nickname, not by credential.** Registering into
+  `~/.dataiku/config.json` means the calling agent needs only the nickname, and
+  no API key has to travel between agents.
+
+`/start-dss-container` is a thin human veneer over `provision`.
+
+## D9. Licence selection walks an ordered preference list
+
+Licence rejection is an expected outcome, not an error, because the licences
+differ by feature tier and older DSS may not parse newer offer strings (K10).
+
+So `provision` tries licences in a documented order — `dev-*-2024.json` first —
+and continues down the list until DSS accepts one, reporting which. Files are
+matched by **glob**, never by exact filename: the `timhonker` portion belongs to
+one user's licence set and must not be hard-coded.
+
+The licence directory is untracked and configurable via `DSS_LAB_LICENSE_DIR`.
+Licence files must never be committed.
