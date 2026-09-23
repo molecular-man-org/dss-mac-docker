@@ -1,0 +1,21 @@
+{
+  "meta": {
+    "label": "Seed transform",
+    "description": "Seeded CustomCode recipe — exists so the recipe-type-to-language map has a real instance to resolve.",
+    "icon": "icon-cogs"
+  },
+  "kind": "PYTHON",
+  "selectableFromDataset": "input_ds",
+  "inputRoles": [
+    { "name": "input_ds", "label": "Input dataset", "arity": "UNARY",
+      "required": true, "acceptsDataset": true }
+  ],
+  "outputRoles": [
+    { "name": "output_ds", "label": "Output dataset", "arity": "UNARY",
+      "required": true, "acceptsDataset": true }
+  ],
+  "params": [
+    { "name": "note", "label": "Note", "type": "STRING", "defaultValue": "seeded" }
+  ],
+  "resourceKeys": []
+}

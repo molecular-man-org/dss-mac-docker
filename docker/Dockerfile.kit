@@ -1,0 +1,71 @@
+# syntax=docker/dockerfile:1
+#
+# Build any DSS version on top of the nearest published Hub image in the same
+# release era (DESIGN.md D3).
+#
+# The era base already carries the OS dependencies and — crucially — the
+# compiled R packages, which is the expensive part. Under Rosetta emulation
+# `install.packages()` compiles C/C++/Fortran from source and costs the better
+# part of an hour; reusing the base skips it entirely.
+#
+# One parameterised Dockerfile covers all three eras because the era only
+# determines BASE_IMAGE and PUPPETEER_VERSION. Per-era Dockerfiles are needed
+# only for a from-scratch build, which is not the default path.
+#
+#   docker build --platform linux/amd64 \
+#     --build-arg BASE_IMAGE=dataiku/dss:12.6.4 \
+#     --build-arg DSS_VERSION_ARG=12.3.1 \
+#     --build-arg PUPPETEER_VERSION=13.7.0 \
+#     -f docker/Dockerfile.kit .
+
+# A default keeps `docker build` from warning about an empty FROM; dss-lab
+# always passes this explicitly via build_base_for().
+ARG BASE_IMAGE=dataiku/dss:12.6.4
+FROM ${BASE_IMAGE}
+
+# Declared AFTER the base so nothing above it is invalidated. Upstream declares
+# the version ARG at line 5, above the dnf and R layers, which busts the cache
+# on every version change — that is the bug this ordering fixes (RESEARCH.md §8).
+ARG DSS_VERSION_ARG
+ARG PUPPETEER_VERSION
+ARG KIT_BASE_URL=https://cdn.downloads.dataiku.com/public/studio
+
+USER dataiku
+WORKDIR /home/dataiku
+
+RUN set -eu; \
+    DSSKIT="dataiku-dss-${DSS_VERSION_ARG}"; \
+    echo "+ downloading ${DSSKIT}"; \
+    curl -fSsL -O "${KIT_BASE_URL}/${DSS_VERSION_ARG}/${DSSKIT}.tar.gz"; \
+    echo "+ extracting"; \
+    tar xf "${DSSKIT}.tar.gz"; \
+    rm "${DSSKIT}.tar.gz"; \
+    "${DSSKIT}"/scripts/install/installdir-postinstall.sh "${DSSKIT}"; \
+    if [ -d "${DSSKIT}/resources/graphics-export" ]; then \
+        cd "${DSSKIT}/resources/graphics-export" && \
+        npm install "puppeteer@${PUPPETEER_VERSION}" fs || \
+        echo "! graphics-export install failed; DSS will run without chart export"; \
+    fi
+
+# Older kits reject newer point releases of the base OS. DSS 12.4.2 aborts with
+# "*** OS distribution not supported *** almalinux 8.10" because 8.10 postdates
+# it, while 12.6.4's installer accepts the same OS. The dependencies really are
+# present — the base image runs its own DSS fine — so only the version-string
+# check is wrong. `installer.sh -n` skips exactly that check and nothing else.
+#
+# The same drift hits the two dssadmin steps run.sh calls afterwards, which
+# perform their own dependency check and fail identically. Both take -noDeps.
+#
+# Patched as root because run.sh is root-owned; we drop straight back.
+USER root
+RUN sed -i -e 's|/installer.sh -d |/installer.sh -n -d |g' \
+           -e 's|dssadmin install-R-integration$|dssadmin install-R-integration -noDeps|' \
+           -e 's|dssadmin install-graphics-export$|dssadmin install-graphics-export -noDeps|' \
+           /home/dataiku/run.sh \
+    && test "$(grep -c -- '/installer.sh -n -d ' /home/dataiku/run.sh)" = "2" \
+    && test "$(grep -c -- '-noDeps' /home/dataiku/run.sh)" = "4"
+USER dataiku
+
+# run.sh (inherited from the base image) locates the install directory from
+# DSS_VERSION, so this is what switches the container onto the new kit.
+ENV DSS_VERSION=${DSS_VERSION_ARG}

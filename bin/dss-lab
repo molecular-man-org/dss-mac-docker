@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+# dss-lab — run any Dataiku DSS version (11.x-15.x) on macOS with Docker Desktop.
+#
+# All real logic lives here rather than in the Claude skills, so it stays
+# testable without an LLM in the loop (DESIGN.md D6).
+
+set -euo pipefail
+
+_self="${BASH_SOURCE[0]}"
+while [ -h "$_self" ]; do
+    _d=$(cd -P "$(dirname "$_self")" && pwd)
+    _self=$(readlink "$_self")
+    case "$_self" in /*) ;; *) _self="$_d/$_self" ;; esac
+done
+LIB_DIR="$(cd -P "$(dirname "$_self")/lib" && pwd)"
+
+# shellcheck source=bin/lib/common.sh
+. "$LIB_DIR/common.sh"
+# shellcheck source=bin/lib/catalog.sh
+. "$LIB_DIR/catalog.sh"
+# shellcheck source=bin/lib/doctor.sh
+. "$LIB_DIR/doctor.sh"
+# shellcheck source=bin/lib/image.sh
+. "$LIB_DIR/image.sh"
+# shellcheck source=bin/lib/instance.sh
+. "$LIB_DIR/instance.sh"
+# shellcheck source=bin/lib/provision.sh
+. "$LIB_DIR/provision.sh"
+
+usage() {
+    cat <<'__HELP__'
+dss-lab — Dataiku DSS versions on macOS + Docker Desktop
+
+USAGE
+    dss-lab <command> [args]
+
+READY
+    doctor [--deep]        Preflight: daemon, Rosetta, VM memory, disk, catalogue
+    catalog [options]      List known DSS versions and how each is obtained
+    resolve <spec>         Resolve a version spec to a concrete version
+    info <spec>            Show everything derived from a version
+    versions               Bare list of known versions, newest first
+
+    catalog options:
+      --summary            Per-release-line counts (default)
+      --all                Full table
+      --major N            Only line N
+      --source pull|build  Only versions obtained that way
+      --refresh            Re-scrape downloads.dataiku.com and Docker Hub
+
+LIFECYCLE
+    up <spec> [opts]       Create or start the container for a version.
+                           Idempotent: an existing container is simply started.
+      --migrate            Accept an IRREVERSIBLE datadir migration
+      --no-wait            Return without waiting for DSS to answer
+      --timeout N          Readiness timeout, seconds (default 1800)
+    ls                     All dss-lab containers, from Docker labels
+    stop <spec>            Stop a running instance
+    url <spec>             Print the instance URL
+    logs <spec> [-f]       Container logs
+    shell <spec>           Interactive shell in the container
+    rm <spec> [--keep-volume]   Remove container, and its datadir unless kept
+    gc                     Reclaim dangling images and build cache
+    build <spec>           Build an image for a version Hub does not publish
+
+PROVISIONING (for calling agents — see docs/PROVISIONING.md)
+    provision <spec> [opts]     Full flow: up, licence, admin API key, register.
+                                Returns connection details. Never prompts.
+      --output json             Emit {nickname, url, api_key, ...}
+      --license FILE            Override the licence preference order
+      --timeout N               Readiness timeout (default 1800)
+    seed <spec> [--slice N]     Add assessment content to a running instance
+    license <spec> [FILE]       Apply a licence only
+    apikey <spec>               Print the admin API key (minting if needed)
+
+PLANNED (phase 5+)
+    snapshot | restore | upgrade
+
+SPECS
+    latest    highest known version
+    14        highest 14.x
+    12.3      highest 12.3.x
+    12.3.0    exact          (a leading "v" or "DSS " is fine)
+__HELP__
+}
+
+cmd_resolve() {
+    [ $# -ge 1 ] || die "resolve: need a version spec"
+    catalog_resolve "$*"
+    printf '\n'
+}
+
+cmd_info() {
+    local v
+    [ $# -ge 1 ] || die "info: need a version spec"
+    v=$(catalog_resolve "$*") || exit 1
+
+    printf '%-14s %s\n' "version"   "$v"
+    printf '%-14s %s\n' "era"       "$(version_era "$v")"
+    printf '%-14s %s\n' "source"    "$(catalog_source "$v")"
+    printf '%-14s %s\n' "container" "$(container_name "$v")"
+    printf '%-14s %s\n' "volume"    "$(volume_name "$v")"
+    printf '%-14s %s\n' "port"      "$(version_port "$v")"
+    printf '%-14s %s\n' "url"       "$(instance_url "$v")"
+    if [ "$(catalog_source "$v")" = "pull" ]; then
+        printf '%-14s %s\n' "image" "$(image_hub "$v")"
+    else
+        printf '%-14s %s\n' "image" "$(image_local "$v")"
+        printf '%-14s %s\n' "build base" "$(build_base_for "$v")"
+    fi
+    version_port_is_canonical "$v" || \
+        log_warn "minor/patch exceeds 9: port may collide, 'up' will fall back to a free port"
+}
+
+cmd_catalog() {
+    local mode="summary" args=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --summary) mode="summary"; shift ;;
+            --all)     mode="table";   shift ;;
+            --refresh) catalog_refresh; return 0 ;;
+            --major)   mode="table"; args="$args --major $2"; shift 2 ;;
+            --source)  mode="table"; args="$args --source $2"; shift 2 ;;
+            -h|--help) usage; return 0 ;;
+            *) die "catalog: unknown option $1" ;;
+        esac
+    done
+    if [ "$mode" = "summary" ]; then
+        catalog_summary
+    else
+        # shellcheck disable=SC2086
+        catalog_table $args
+    fi
+}
+
+cmd_not_yet() {
+    log_error "'$1' is not implemented yet (phase 5+ — see docs/ROADMAP.md)"
+    exit 1
+}
+
+main() {
+    [ $# -ge 1 ] || { usage; exit 0; }
+    local cmd="$1"; shift
+    case "$cmd" in
+        doctor)   set +e; doctor_run "${1:-}"; exit $? ;;
+        catalog)  cmd_catalog "$@" ;;
+        resolve)  cmd_resolve "$@" ;;
+        info)     cmd_info "$@" ;;
+        versions) catalog_versions | version_sort | tail -r 2>/dev/null || catalog_versions | version_sort ;;
+        up)       require_docker; local sp="$1"; shift; instance_up "$(catalog_resolve "$sp")" "$@" ;;
+        ls)       require_docker; instance_ls ;;
+        stop)     require_docker; instance_stop "$(catalog_resolve "$1")" ;;
+        url)      instance_url "$(catalog_resolve "$1")" ;;
+        logs)     require_docker; local sp="$1"; shift; instance_logs "$(catalog_resolve "$sp")" "$@" ;;
+        shell)    require_docker; instance_shell "$(catalog_resolve "$1")" ;;
+        rm)       require_docker; local sp="$1"; shift; instance_rm "$(catalog_resolve "$sp")" "${1:-}" ;;
+        gc)       require_docker; instance_gc ;;
+        build)    require_docker; local sp="$1"; shift; image_build "$(catalog_resolve "$sp")" "$@" ;;
+        provision) require_docker; local sp="$1"; shift; provision "$(catalog_resolve "$sp")" "$@" ;;
+        license)  require_docker; local sp="$1"; shift; license_apply "$(catalog_resolve "$sp")" "${1:-}" >/dev/null ;;
+        apikey)   require_docker; apikey_ensure "$(catalog_resolve "$1")" ;;
+        seed)     require_docker; local sp="$1"; shift; seed_instance "$(catalog_resolve "$sp")" "$@" ;;
+        snapshot|restore|upgrade) cmd_not_yet "$cmd" ;;
+        -h|--help|help) usage ;;
+        *) log_error "unknown command: $cmd"; usage; exit 1 ;;
+    esac
+}
+
+main "$@"

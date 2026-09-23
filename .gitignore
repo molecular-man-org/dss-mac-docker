@@ -1,0 +1,21 @@
+.DS_Store
+*.log
+evidence/*
+!evidence/.gitkeep
+.cache/
+*.tar.gz
+
+# Licence files — never commit these.
+# Real DSS licence files are named like `dev-<user>-2024.json`, so matching
+# on the word "licence" alone catches nothing. The repo has no legitimate
+# top-level JSON, so the root glob is the reliable guard.
+/*.json
+dev-*.json
+*license*.json
+*licence*.json
+licenses/
+licences/
+
+# Python bytecode — tests/run_tests.sh compiles tools/*.py on every run
+__pycache__/
+*.pyc

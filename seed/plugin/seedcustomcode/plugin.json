@@ -1,0 +1,9 @@
+{
+  "id": "seedcustomcode",
+  "version": "1.0.0",
+  "meta": {
+    "label": "Seed CustomCode",
+    "description": "Minimal dev plugin so a genuine CustomCode_* recipe type exists for assessment.",
+    "author": "dss-mac-docker"
+  }
+}
