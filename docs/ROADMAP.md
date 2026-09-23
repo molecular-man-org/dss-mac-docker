@@ -85,15 +85,17 @@ the sibling project depends on it.
 
 ## Phase 5 — Upgrade paths
 
-- [ ] `snapshot` / `restore` — volume clone
-- [ ] `upgrade <from-version> <to-version>` — snapshot, then let `run.sh` migrate
-- [ ] Verified on a real 13.x → 14.x migration
+- [x] `snapshot` / `restore` — volume clone; `restore` demands `--force`
+- [x] `upgrade <from> <to>` — clones the datadir and lets `run.sh` migrate the
+      clone; the source is left untouched as the rollback (DESIGN D5)
+- [x] Verified on real migrations 12.6.4 → 13.4.4 → 14.7.0 → 15.0.0
+      ([matrix](compatibility-matrix.md))
 
 ## Phase 6 — Evidence
 
 - [ ] `bundle <version> <file>` — preload a project bundle
-- [ ] `docs/compatibility-matrix.md` — boot each era under Rosetta, record results
-      in `evidence/`; covers K2 and the boundary versions
+- [x] `docs/compatibility-matrix.md` — licence tiers, boot and upgrade results
+      measured on real containers; first pass, boundaries and every era
 
 ## Phase 8 — Route registration as a gate screen `[ ] HYPOTHESIS`
 

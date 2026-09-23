@@ -4,7 +4,7 @@
 # Licence -> admin API key -> register -> emit {nickname, url, api_key}.
 # Unattended: nothing here prompts.
 
-LICENSE_DIR="${DSS_LAB_LICENSE_DIR:-$HOME/.dss-lab/licences}"
+LICENSE_DIR="${DSS_LAB_LICENSE_DIR:-$HOME/.dataiku/licenses}"
 DATAIKU_CONFIG="${DKU_CONFIG_FILE:-$HOME/.dataiku/config.json}"
 APIKEY_LABEL="dss-mac-docker"
 
@@ -44,6 +44,18 @@ license_candidates() {
     done
 }
 
+# LICENSE_2025_MIN_DSS — the 2025-tier licences are refused by any older DSS
+# (docs/LICENCES.md). Skip them there rather than try and read a 400.
+LICENSE_2025_MIN_DSS="12.6.0"
+
+# license_supported <file> <version> — false only for a known-bad pairing
+license_supported() {
+    case "$(basename "$1")" in
+        *2025*) version_ge "$2" "$LICENSE_2025_MIN_DSS" ;;
+        *) return 0 ;;
+    esac
+}
+
 # license_apply <version> [explicit_file]
 # Walks the preference order until DSS accepts one. Rejection is an expected
 # outcome, not an error (KNOWN_ISSUES K10). Prints the winning filename.
@@ -57,12 +69,20 @@ license_apply() {
         list="$explicit"
     else
         list=$(license_candidates)
-        [ -n "$list" ] || die "no licence files in $LICENSE_DIR (set DSS_LAB_LICENSE_DIR)"
+        [ -n "$list" ] || die "no licence files in $LICENSE_DIR (put them there, or set DSS_LAB_LICENSE_DIR)"
     fi
 
     printf '%s\n' "$list" | while IFS= read -r c; do
         [ -n "$c" ] || continue
         exp=$(license_expiry "$c")
+        if ! license_supported "$c" "$v"; then
+            if [ -n "$explicit" ]; then
+                log_warn "$(basename "$c") is a 2025-tier licence; DSS $v is older than $LICENSE_2025_MIN_DSS and will likely reject it" >&2
+            else
+                log_dim "skipping $(basename "$c"): 2025-tier licences need DSS $LICENSE_2025_MIN_DSS or later" >&2
+                continue
+            fi
+        fi
         if license_expired "$c"; then
             log_warn "skipping $(basename "$c"): expired on $exp" >&2
             continue
@@ -99,6 +119,77 @@ e=sys.argv[1]
 d=datetime.date(int(e[:4]),int(e[4:6]),int(e[6:8]))
 print((d-datetime.date.today()).days)
 " "$best"
+}
+
+# ------------------------------------------------------------ admin profile --
+# A fresh DSS stores its admin user as DATA_SCIENTIST. A licence that does not
+# offer that profile (the 2024 and 2025 tiers) makes DSS silently demote admin to
+# the licence's fallback profile, which is EXPLORER on the 2024 tier: the API key
+# works but admin cannot author anything. Read the truth off the live node.
+
+# admin_profile_for_licence <file> — the maximum productive profile for the
+# licence tier (docs/LICENCES.md). Empty for a file we cannot classify.
+admin_profile_for_licence() {
+    case "$(basename "$1")" in
+        *2025*) printf 'FULL_DESIGNER' ;;
+        *2024*) printf 'DESIGNER' ;;
+        *2018*) printf 'DATA_SCIENTIST' ;;
+    esac
+}
+
+# admin_profile_decide <stored> <target> <licensed profiles, space-separated>
+# -> ok | set | unoffered | unknown. Only a stored profile the licence does NOT
+# offer counts as demoted; one that is licensed is left alone, because someone
+# may have chosen it on purpose.
+admin_profile_decide() {
+    local stored="$1" target="$2" licensed=" $3 "
+    case "$licensed" in *" $stored "*) printf 'ok'; return 0 ;; esac
+    [ -n "$target" ] || { printf 'unknown'; return 0; }
+    case "$licensed" in *" $target "*) printf 'set' ;; *) printf 'unoffered' ;; esac
+}
+
+# _dss_get <url> <key> <path> — public API GET; body on stdout
+_dss_get() { curl -s -m 30 -u "$2:" "$1/public/api$3"; }
+
+# admin_profile_ensure <version> <licence_file> <url> <key>
+# Prints admin's resulting stored profile on stdout, empty if it could not be
+# determined. Never fails provisioning: a demoted admin is reported, not fatal.
+admin_profile_ensure() {
+    local v="$1" lic="$2" url="$3" key="$4" licensed stored target action
+    licensed=$(_dss_get "$url" "$key" /admin/licensing/status | python3 -c "
+import sys,json
+try: print(' '.join(json.load(sys.stdin).get('base',{}).get('userProfiles',[])))
+except Exception: pass" 2>/dev/null)
+    stored=$(_dss_get "$url" "$key" /admin/users/admin | python3 -c "
+import sys,json
+try: print(json.load(sys.stdin).get('userProfile') or '')
+except Exception: pass" 2>/dev/null)
+    if [ -z "$licensed" ] || [ -z "$stored" ]; then
+        log_warn "could not read admin's profile from DSS $v; left unchanged" >&2
+        return 0
+    fi
+    target=$(admin_profile_for_licence "$lic")
+    action=$(admin_profile_decide "$stored" "$target" "$licensed")
+    case "$action" in
+        ok)
+            log_dim "admin profile $stored is licensed" >&2 ;;
+        unknown)
+            log_warn "admin profile $stored is not offered by this licence, and $(basename "$lic") is not a known tier; left unchanged" >&2 ;;
+        unoffered)
+            log_warn "admin profile $stored is not offered, and neither is $target (this licence offers: $licensed); admin is demoted" >&2 ;;
+        set)
+            log_step "admin is stored as $stored, which this licence does not offer; setting $target" >&2
+            docker exec "$(container_name "$v")" "$DSS_DATADIR/bin/dsscli" user-edit admin \
+                --user-profile "$target" >/dev/null 2>&1 \
+                || { log_warn "could not set admin's profile to $target" >&2; printf '%s' "$stored"; return 0; }
+            stored=$(_dss_get "$url" "$key" /admin/users/admin | python3 -c "
+import sys,json
+try: print(json.load(sys.stdin).get('userProfile') or '')
+except Exception: pass" 2>/dev/null)
+            if [ "$stored" = "$target" ]; then log_ok "admin profile is now $target" >&2
+            else log_warn "admin profile reads back as '$stored', expected $target" >&2; fi ;;
+    esac
+    printf '%s' "$stored"
 }
 
 # ---------------------------------------------------------------- API keys --
@@ -309,18 +400,22 @@ provision() {
     [ -n "$key" ] || die "could not obtain an admin API key for DSS $v"
 
     url=$(instance_url "$v" | tr -d '\n')
+    local admin_profile
+    admin_profile=$(admin_profile_ensure "$v" "$chosen" "$url" "$key")
     nick=$(DSS_LAB_API_KEY="$key" register_instance "$v" "$url")
 
     if [ "$out" = "json" ]; then
         DSS_LAB_API_KEY="$key" NICK="$nick" URL="$url" V="$v" \
         CT="$(container_name "$v")" LIC="$chosen" DEPS="$(image_deps_check "$v")" \
+        AP="$admin_profile" \
         python3 -c "
 import json,os
 print(json.dumps({
  'nickname': os.environ['NICK'], 'url': os.environ['URL'],
  'api_key': os.environ['DSS_LAB_API_KEY'], 'version': os.environ['V'],
  'container': os.environ['CT'], 'licence': os.environ['LIC'],
- 'deps_check': os.environ['DEPS'], 'status': 'ready',
+ 'deps_check': os.environ['DEPS'], 'admin_profile': os.environ['AP'],
+ 'status': 'ready',
 }, indent=2))
 "
     else
@@ -330,6 +425,7 @@ print(json.dumps({
         printf 'version   %s\n' "$v"
         printf 'licence   %s\n' "$chosen"
         printf 'deps_check %s\n' "$(image_deps_check "$v")"
+        printf 'admin_profile %s\n' "$admin_profile"
         printf 'api_key   <%s chars — use --output json to emit it>\n' "${#key}"
         log_info ""
         log_dim "connect with dataiku-headless using nickname '$nick'"

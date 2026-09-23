@@ -60,6 +60,20 @@ version_major() { printf '%s' "${1%%.*}"; }
 version_minor() { local r="${1#*.}"; printf '%s' "${r%%.*}"; }
 version_patch() { printf '%s' "${1##*.}"; }
 
+# version_gt <a> <b> — true when a is strictly newer than b
+version_gt() {
+    local a="$1" b="$2" i x y
+    for i in 1 2 3; do
+        x=$(printf '%s' "$a" | cut -d. -f"$i"); y=$(printf '%s' "$b" | cut -d. -f"$i")
+        [ "$x" -gt "$y" ] && return 0
+        [ "$x" -lt "$y" ] && return 1
+    done
+    return 1
+}
+
+# version_ge <a> <b> — true when a is newer than or equal to b
+version_ge() { [ "$1" = "$2" ] || version_gt "$1" "$2"; }
+
 # version_in_range <version> — DSS 11.0.0 and later only
 version_in_range() {
     version_valid "$1" || return 1

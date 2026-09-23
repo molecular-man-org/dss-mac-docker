@@ -36,6 +36,7 @@ Every step is unattended. Nothing may prompt, and nothing may assume a browser.
   "version": "12.3.1",
   "container": "dss-12.3.1",
   "licence": "dev-example-2024.json",
+  "admin_profile": "DESIGNER",
   "status": "ready"
 }
 ```
@@ -141,7 +142,7 @@ running backend, and `installer.sh -l <file>` applies one at first install.
 `dsscli set-license` ever proves unavailable on some version.
 
 **Licence source** is an untracked folder of licence files you supply,
-defaulting to `~/.dss-lab/licences/`. It must stay configurable and must never
+defaulting to `~/.dataiku/licenses/`. It must stay configurable and must never
 be committed. Override with `DSS_LAB_LICENSE_DIR`.
 
 ### Choosing "the appropriate licence"

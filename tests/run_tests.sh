@@ -17,6 +17,8 @@ NO_COLOR=1; export NO_COLOR
 . "$ROOT/bin/lib/instance.sh"
 # shellcheck source=../bin/lib/provision.sh
 . "$ROOT/bin/lib/provision.sh"
+# shellcheck source=../bin/lib/snapshot.sh
+. "$ROOT/bin/lib/snapshot.sh"
 
 PASS=0; FAIL=0
 
@@ -258,6 +260,77 @@ printf 'this is not json{{{' > "$DATAIKU_CONFIG"
 if grep -q 'not json' "$DATAIKU_CONFIG"; then ok
 else bad "K12: clobbered a config it could not parse"; fi
 rm -rf "$CFGTMP"
+
+# ------------------------------------------------- snapshots and upgrades --
+section "admin profile follows the licence tier (docs/LICENCES.md)"
+assert_eq "2025 -> FULL_DESIGNER"  FULL_DESIGNER  "$(admin_profile_for_licence dev-x-2025-enterprise.json)"
+assert_eq "2025 aiml"              FULL_DESIGNER  "$(admin_profile_for_licence /a/dev-x-2025-aiml.json)"
+assert_eq "2024 -> DESIGNER"       DESIGNER       "$(admin_profile_for_licence dev-x-2024.json)"
+assert_eq "2018 -> DATA_SCIENTIST" DATA_SCIENTIST "$(admin_profile_for_licence dev-x-2018.json)"
+assert_eq "unknown tier is empty"  ""             "$(admin_profile_for_licence custom.json)"
+P24="DESIGNER PLATFORM_ADMIN VISUAL_DESIGNER EXPLORER AI_CONSUMER READER NONE"
+assert_eq "demoted admin is fixed"        set       "$(admin_profile_decide DATA_SCIENTIST DESIGNER "$P24")"
+assert_eq "licensed admin left alone"     ok        "$(admin_profile_decide VISUAL_DESIGNER DESIGNER "$P24")"
+assert_eq "already on target"             ok        "$(admin_profile_decide DESIGNER DESIGNER "$P24")"
+assert_eq "target not offered"            unoffered "$(admin_profile_decide DATA_SCIENTIST FULL_DESIGNER "$P24")"
+assert_eq "unclassifiable licence"        unknown   "$(admin_profile_decide DATA_SCIENTIST "" "$P24")"
+# PLATFORM_ADMIN is offered by every tier but must never be the target: it is an
+# administrative identity, not the productive-access profile.
+for f in dev-x-2025-aiml.json dev-x-2024.json dev-x-2018.json; do
+    case "$(admin_profile_for_licence "$f")" in PLATFORM_ADMIN|ADMIN|TECHNICAL_ACCOUNT) bad "$f targets an admin profile" ;; *) ok ;; esac
+done
+
+section "version_ge"
+assert_true  "equal is >="        version_ge 12.6.0 12.6.0
+assert_true  "12.6.4 >= 12.6.0"   version_ge 12.6.4 12.6.0
+assert_false "12.5.9 >= 12.6.0"   version_ge 12.5.9 12.6.0
+assert_false "11.2.0 >= 12.6.0"   version_ge 11.2.0 12.6.0
+
+section "2025 licences need DSS 12.6.0+ (docs/LICENCES.md)"
+for f in dev-x-2025-enterprise.json dev-x-2025-aiml.json dev-x-2025-analytics.json; do
+    assert_false "$f refused on 11.2.0" license_supported "$f" 11.2.0
+    assert_false "$f refused on 12.5.9" license_supported "$f" 12.5.9
+    assert_true  "$f allowed on 12.6.0" license_supported "$f" 12.6.0
+    assert_true  "$f allowed on 14.7.3" license_supported "$f" 14.7.3
+done
+for f in dev-x-2024.json dev-x-2018.json; do
+    assert_true "$f allowed on 11.2.0" license_supported "$f" 11.2.0
+done
+
+section "version_gt"
+assert_true  "14.7.3 > 13.5.7"  version_gt 14.7.3 13.5.7
+assert_true  "12.6.10 > 12.6.9" version_gt 12.6.10 12.6.9
+assert_true  "13.0.0 > 12.9.9"  version_gt 13.0.0 12.9.9
+assert_false "equal is not >"   version_gt 12.3.0 12.3.0
+assert_false "12.6.4 > 12.6.7"  version_gt 12.6.4 12.6.7
+assert_false "11.2.0 > 15.0.0"  version_gt 11.2.0 15.0.0
+
+section "upgrade_check refuses downgrades and no-ops"
+assert_true  "13.4.4 -> 14.7.0 allowed"      upgrade_check 13.4.4 14.7.0
+assert_true  "12.6.4 -> 12.6.7 allowed"      upgrade_check 12.6.4 12.6.7
+assert_false "same version refused"          upgrade_check 12.6.4 12.6.4
+assert_false "downgrade refused"             upgrade_check 14.7.3 13.5.7
+assert_false "patch downgrade refused"       upgrade_check 12.6.7 12.6.4
+
+section "snapshot naming"
+assert_eq "volume name" "dss-12.6.4-snap-before" "$(snapshot_volume 12.6.4 before)"
+for n in before 20260923-101500 pre_upgrade v1.2; do assert_true "name ok $n" snapshot_name_valid "$n"; done
+for n in "" "-lead" "has space" "a/b" "semi;colon" "x:y"; do assert_false "name bad '$n'" snapshot_name_valid "$n"; done
+# A snapshot volume must never look like an instance to `ls` and `gc`, which
+# select on the managed label.
+if grep -q 'managed=true' <(sed -n '/^snapshot_create()/,/^}/p' "$ROOT/bin/lib/snapshot.sh"); then
+    bad "snapshot volumes must not carry the managed label"; else ok; fi
+# The upgrade target volume is labelled with the TARGET version, because labels
+# are immutable; labelling it with the source would make the guard refuse every
+# later `up`.
+if sed -n '/^instance_upgrade()/,/^}/p' "$ROOT/bin/lib/snapshot.sh" | grep -q 'version=\$to'; then ok
+else bad "upgrade must label the new volume with the target version"; fi
+if sed -n '/^instance_upgrade()/,/^}/p' "$ROOT/bin/lib/snapshot.sh" | grep -q 'rm -f\|volume rm "\$(volume_name "\$from")"'; then
+    bad "upgrade must never remove the source datadir"; else ok; fi
+# Restore is destructive and nothing prompts, so it must demand --force.
+out=$(snapshot_restore 12.6.4 x 2>&1); rc=$?
+assert_eq "restore without --force exits 1" "1" "$rc"
+assert_true "restore without --force says why" grep -q -e "--force" <<<"$out"
 
 # ------------------------------------------------------- licence containment --
 # A leaked licence file is the worst thing this repo could commit, and the

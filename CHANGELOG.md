@@ -4,10 +4,23 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **`snapshot`, `restore`, `upgrade`** — datadir snapshots and guarded upgrades.
+  `upgrade <from> <to>` migrates a clone and leaves `from` untouched as the
+  rollback. Verified live: a marker project survived 12.6.4 → 13.4.4 → 14.7.0.
+- `docs/LICENCES.md` and a root `CLAUDE.md` recording which licence suits which
+  DSS version.
+- `provision` skips the 2025-tier licences on DSS older than 12.6.0.
+- `provision` repairs a demoted admin user and reports `admin_profile` in its
+  JSON: it sets the licence tier's maximum productive profile and reads it back.
+- `docs/compatibility-matrix.md` — measured licence, boot and upgrade results.
+- GitHub Actions CI: the test suite (macOS and Linux), shellcheck, markdownlint.
+
 ### Changed
 
 - Prepared for public release: Apache-2.0 `LICENSE` added; the licence folder now
-  defaults to `~/.dss-lab/licences` (set `DSS_LAB_LICENSE_DIR` to keep using
+  defaults to `~/.dataiku/licenses` (set `DSS_LAB_LICENSE_DIR` to use
   another); personal identifiers and internal hostnames removed from docs and
   test fixtures.
 

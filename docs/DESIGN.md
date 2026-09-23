@@ -139,7 +139,16 @@ downgrade (RESEARCH §7). Therefore:
 - `up` compares the volume's `version` label to the requested version. If they
   differ it **refuses** unless `--migrate` is passed. This is the one place the
   no-prompt rule yields, because the operation is irreversible.
-- `upgrade <from> <to>` snapshots the volume first, then lets `run.sh` migrate.
+- `upgrade <from> <to>` **clones** the `from` datadir into a new volume for `to`
+  and lets `run.sh` migrate the clone. `from` is left stopped and untouched, so
+  it is the rollback; a separate snapshot first would be a redundant copy. It
+  refuses downgrades, and refuses if `to` already has a container or datadir.
+  The new volume is labelled with the **target** version plus `migrated_from`,
+  because Docker volume labels are immutable: labelling the clone with the
+  source version would make this guard refuse every later `up`.
+- `snapshot`/`restore` copy a datadir to and from a labelled volume
+  (`snapshot=true`, never `managed=true`, so `ls` and `gc` ignore it). `restore`
+  is destructive and demands `--force`.
 
 ## D6. Skill layer is thin on purpose
 
@@ -205,5 +214,6 @@ and continues down the list until DSS accepts one, reporting which. Files are
 matched by **glob**, never by exact filename: the user portion of the filename
 belongs to one licence set and must not be hard-coded.
 
-The licence directory is untracked and configurable via `DSS_LAB_LICENSE_DIR`.
+The licence directory is `~/.dataiku/licenses` — outside the repo, so nothing
+can be committed by accident — and configurable via `DSS_LAB_LICENSE_DIR`.
 Licence files must never be committed.

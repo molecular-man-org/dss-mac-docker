@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The suite needs no Docker daemon. macOS is the platform this tool targets and
+  # ships bash 3.2, which the scripts are written for, so it is the faithful run;
+  # Linux catches anything that only works on the author's machine.
+  test:
+    name: tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install markdownlint (the suite has a docs-lint gate)
+        run: npm install --global markdownlint-cli@0.49.1
+      - name: Run tests/run_tests.sh
+        run: bash tests/run_tests.sh
+
+  lint:
+    name: shellcheck and markdownlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: |
+          command -v shellcheck >/dev/null || sudo apt-get install -y shellcheck
+          shellcheck -S warning bin/dss-lab bin/lib/*.sh tests/run_tests.sh
+      - name: markdownlint
+        run: |
+          npm install --global markdownlint-cli@0.49.1
+          markdownlint .

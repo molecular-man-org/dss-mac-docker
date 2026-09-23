@@ -36,5 +36,5 @@ test: ## Run unit tests
 	@bash tests/run_tests.sh
 
 lint: ## Lint shell and markdown
-	@command -v shellcheck >/dev/null && shellcheck bin/dss-lab bin/lib/*.sh || echo "shellcheck not installed"
+	@command -v shellcheck >/dev/null && shellcheck -S warning bin/dss-lab bin/lib/*.sh tests/run_tests.sh || echo "shellcheck not installed"
 	@command -v markdownlint >/dev/null && markdownlint . || echo "markdownlint not installed"

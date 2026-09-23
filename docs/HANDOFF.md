@@ -28,14 +28,16 @@ plan". Read that file first; this section only says where to start.
 
 ### Start next session with
 
-1. **Phase A1, repro first.** Start a node (`dss-lab up 14.7.3`) and confirm
-   admin is demoted: stored `DATA_SCIENTIST`, absent from `base.userProfiles`.
-   Record which admin actions fail — a job, a scenario, an import. That failure
-   is the regression test.
-2. Then implement A1 in `bin/lib/provision.sh`: the `set-license` read-back
-   gate, `admin_profile_ensure` using the pin, and the `docker exec -u root`
-   cleanup fix.
-3. Then the **spike** (plan step 2). It includes importing
+1. **Phase A1 is half done (2026-09-23).** The admin-profile repair is built and
+   verified live: `provision` sets the licence tier's maximum productive profile
+   and reads it back (`admin_profile` in the JSON; see
+   [LICENCES.md](LICENCES.md) and the [matrix](compatibility-matrix.md)). Still
+   open: gate `set-license` on a licensing-status read-back (it exits 0 for a
+   licence the node cannot parse; the 2025-below-12.6.0 case is only avoided by
+   skipping, not detected), and the `docker exec -u root` cleanup fix for the
+   staged licence copy in `/tmp`. The read-back needs an API key, which
+   `provision` mints after the licence, so the order needs care.
+2. Then the **spike** (plan step 2). It includes importing
    `VFR_FLIGHT_WEATHER_PREDICTION` into a 12.x node: whether older DSS accepts
    a newer export decides Phase E's scope.
 
@@ -48,7 +50,7 @@ plan". Read that file first; this section only says where to start.
   possibly changed by that session, unverified.
 - A staged licence copy is still in `/tmp` inside 12.4.2 and 14.7.3 — the A1 cleanup
   bug. Harmless locally; A1 fixes it.
-- `provision.sh` reads licences from `~/.dss-lab/licences` unless
+- `provision.sh` reads licences from `~/.dataiku/licenses` unless
   `DSS_LAB_LICENSE_DIR` is set.
 
 ### Rules that bind this work

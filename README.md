@@ -89,9 +89,9 @@ which skips the expensive R build entirely.
 ## Requirements
 
 - **A Dataiku DSS licence file that you supply.** DSS will not start unlicensed,
-  and no licence is included or distributed here. Put your files in
-  `~/.dss-lab/licences/` or point `DSS_LAB_LICENSE_DIR` at them. Licence files
-  are gitignored; never commit one.
+  and no licence is included or distributed here. **Put your licence files in
+  `~/.dataiku/licenses/`** (or point `DSS_LAB_LICENSE_DIR` at another folder).
+  That folder is outside the repo; never commit a licence file.
 - Apple Silicon Mac with Docker Desktop (`/Applications/Docker.app`)
 - **Rosetta emulation enabled** — DSS ships x86-64 only
 - Docker VM with ~10 GB RAM recommended; 6.25 GB is the current default and is
@@ -106,7 +106,8 @@ which skips the expensive R build entirely.
 | [DESIGN.md](docs/DESIGN.md) | Architecture and the reasoning behind it |
 | [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) | Risks, traps, and open unknowns |
 | [PROVISIONING.md](docs/PROVISIONING.md) | **The contract with calling agents** |
-| [ROADMAP.md](docs/ROADMAP.md) | Six phases with exit criteria |
+| [LICENCES.md](docs/LICENCES.md) | Which licence to use, and where to put them |
+| [ROADMAP.md](docs/ROADMAP.md) | Phases with exit criteria |
 
 ## Disclaimer
 

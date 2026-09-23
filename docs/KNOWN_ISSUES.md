@@ -47,7 +47,8 @@ Point a 14.x container at a 13.x volume and it migrates: `rm -rf pyenv` then
 `installer.sh -u -y`. There is no downgrade path (RESEARCH §7).
 
 Guard: `up` compares the volume's `version` label against the request and refuses
-without `--migrate`; `upgrade` snapshots first (DESIGN D5). **This is the single
+without `--migrate`; `upgrade` migrates a clone and leaves the source untouched
+(DESIGN D5). **This is the single
 most destructive thing the tool can do** — implement the guard in the same change
 as `up`, never after.
 
@@ -103,7 +104,11 @@ a real container. Phase-1 docker interaction is no longer theoretical.
 Still true for **phase 2 onward** — nothing has yet pulled, built or run a DSS
 image. Treat the first `up` as a bring-up.
 
-## K10. Which licence offer strings older DSS accepts — UNVERIFIED
+## K10. Which licence offer strings older DSS accepts — MEASURED 2026-09-23
+
+The 2025 tiers are rejected below 12.6.0 (11.2.0 and 12.4.2 measured) and accepted
+from 12.6.4 on; 2024 and 2018 are accepted everywhere tested. See the
+[matrix](compatibility-matrix.md). The original analysis is kept below.
 
 The five available licences differ by feature tier, not DSS version
 (PROVISIONING §"Choosing the appropriate licence"). Tim's direction is to try

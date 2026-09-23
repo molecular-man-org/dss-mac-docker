@@ -26,6 +26,8 @@ LIB_DIR="$(cd -P "$(dirname "$_self")/lib" && pwd)"
 . "$LIB_DIR/instance.sh"
 # shellcheck source=bin/lib/provision.sh
 . "$LIB_DIR/provision.sh"
+# shellcheck source=bin/lib/snapshot.sh
+. "$LIB_DIR/snapshot.sh"
 
 usage() {
     cat <<'__HELP__'
@@ -73,8 +75,16 @@ PROVISIONING (for calling agents — see docs/PROVISIONING.md)
     license <spec> [FILE]       Apply a licence only
     apikey <spec>               Print the admin API key (minting if needed)
 
-PLANNED (phase 5+)
-    snapshot | restore | upgrade
+SNAPSHOTS AND UPGRADES
+    snapshot <spec> [name]      Copy the datadir (stops a running node, restarts it)
+    snapshot ls [spec]          List snapshots
+    snapshot rm <spec> <name>   Delete a snapshot
+    restore <spec> <name> --force
+                                Replace the datadir with a snapshot (destructive)
+    upgrade <from> <to>         Clone <from>'s datadir into a new <to> node and let
+                                DSS migrate it. <from> is left untouched as the
+                                rollback. Refuses downgrades and an existing <to>.
+      --no-wait  --timeout N    As for up
 
 SPECS
     latest    highest known version
@@ -133,9 +143,26 @@ cmd_catalog() {
     fi
 }
 
-cmd_not_yet() {
-    log_error "'$1' is not implemented yet (phase 5+ — see docs/ROADMAP.md)"
-    exit 1
+cmd_snapshot() {
+    [ $# -ge 1 ] || die "snapshot: need a version spec, or ls / rm"
+    case "$1" in
+        ls) shift; snapshot_ls "${1:+$(catalog_resolve "$1")}" ;;
+        rm) [ $# -eq 3 ] || die "snapshot rm: need <spec> <name>"
+            snapshot_rm "$(catalog_resolve "$2")" "$3" ;;
+        *)  [ $# -le 2 ] || die "snapshot: too many arguments"
+            snapshot_create "$(catalog_resolve "$1")" "${2:-}" ;;
+    esac
+}
+
+cmd_restore() {
+    [ $# -ge 2 ] || die "restore: need <spec> <name> --force"
+    snapshot_restore "$(catalog_resolve "$1")" "$2" "${3:-}"
+}
+
+cmd_upgrade() {
+    [ $# -ge 2 ] || die "upgrade: need <from> <to>"
+    local from to; from=$(catalog_resolve "$1"); to=$(catalog_resolve "$2"); shift 2
+    instance_upgrade "$from" "$to" "$@"
 }
 
 main() {
@@ -160,7 +187,9 @@ main() {
         license)  require_docker; local sp="$1"; shift; license_apply "$(catalog_resolve "$sp")" "${1:-}" >/dev/null ;;
         apikey)   require_docker; apikey_ensure "$(catalog_resolve "$1")" ;;
         seed)     require_docker; local sp="$1"; shift; seed_instance "$(catalog_resolve "$sp")" "$@" ;;
-        snapshot|restore|upgrade) cmd_not_yet "$cmd" ;;
+        snapshot) require_docker; cmd_snapshot "$@" ;;
+        restore)  require_docker; cmd_restore "$@" ;;
+        upgrade)  require_docker; cmd_upgrade "$@" ;;
         -h|--help|help) usage ;;
         *) log_error "unknown command: $cmd"; usage; exit 1 ;;
     esac
