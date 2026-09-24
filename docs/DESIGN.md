@@ -92,8 +92,14 @@ ENV DSS_VERSION=${DSS_VERSION_ARG}
 
 Setting `ENV DSS_VERSION` is what redirects the base's inherited `run.sh` onto
 the newly installed kit. **One parameterised Dockerfile covers every era**, since
-the era only selects `BASE_IMAGE` and `PUPPETEER_VERSION`; per-era Dockerfiles
-would only be needed for a from-scratch build, which is not implemented.
+the era only selects `BASE_IMAGE` and a fallback `PUPPETEER_VERSION`; per-era
+Dockerfiles would only be needed for a from-scratch build, which is deliberately
+not supported: it costs about an hour of emulated R compilation per era, nothing
+needs it, and the Hub-base path reaches every catalogue version.
+
+The Puppeteer version actually installed is asked of the kit itself
+(`docker/kit-puppeteer.sh`), not taken from the era: an era-wide pin mismatched
+some kits and made first boot take 11 minutes (KNOWN_ISSUES K14).
 
 **Cost:** the base carries a dead ~3 GB kit for its own DSS version in a lower
 layer, so deleting it in stage 2 reclaims nothing. Measured: a built 12.6.7 image
@@ -180,9 +186,26 @@ idles at ~2 GiB, and two ran side by side on a 10 GB VM without pressure
 ([finding](findings/built-image-verified.md)). Writing a smaller heap would slow
 DSS down to solve a problem that does not exist.
 
-`up` still sets a container memory ceiling derived from the VM size. Heap tuning
-stays unimplemented until 14.x/15.x — larger images, unmeasured — or a real
-workload demonstrates it is needed.
+`up` still sets a container memory ceiling derived from the VM size.
+
+**14.x and 15.x are now measured too (2026-09-23), and the answer holds.** Idle
+memory three minutes after the backend answered, one node at a time on the 10 GB
+VM:
+
+| DSS | Idle memory |
+| --- | --- |
+| 12.6.4 | 1.9 GiB |
+| 13.4.4 | 1.9 GiB |
+| 14.7.0 | 2.5 GiB |
+| 15.0.0 | 2.4 GiB |
+
+DSS already ships conservative heaps: `env-default.sh` caps the backend, FEK,
+HPROXY and JEK JVMs at `-Xmx2g` each, so there is nothing generous to trim. Two
+nodes cost about 5 GiB and fit the VM with room to spare; four would be tight.
+Heap tuning stays unimplemented unless a real workload shows a need.
+
+This measures an idle node. A node running jobs, recipes or ML will use more, and
+that has not been measured.
 
 This is the design working as intended: the measurement was the deliverable, and
 it retired the feature.

@@ -28,6 +28,8 @@ LIB_DIR="$(cd -P "$(dirname "$_self")/lib" && pwd)"
 . "$LIB_DIR/provision.sh"
 # shellcheck source=bin/lib/snapshot.sh
 . "$LIB_DIR/snapshot.sh"
+# shellcheck source=bin/lib/bundle.sh
+. "$LIB_DIR/bundle.sh"
 
 usage() {
     cat <<'__HELP__'
@@ -72,6 +74,9 @@ PROVISIONING (for calling agents — see docs/PROVISIONING.md)
       --license FILE            Override the licence preference order
       --timeout N               Readiness timeout (default 1800)
     seed <spec> [--slice N]     Add assessment content to a running instance
+    bundle <spec> <file.zip>    Import a project export archive into a running instance
+      --project-key KEY           Import under a different project key
+      --remap-connection OLD=NEW  Remap a connection (repeatable)
     license <spec> [FILE]       Apply a licence only
     apikey <spec>               Print the admin API key (minting if needed)
 
@@ -186,6 +191,7 @@ main() {
         provision) require_docker; local sp="$1"; shift; provision "$(catalog_resolve "$sp")" "$@" ;;
         license)  require_docker; local sp="$1"; shift; license_apply "$(catalog_resolve "$sp")" "${1:-}" >/dev/null ;;
         apikey)   require_docker; apikey_ensure "$(catalog_resolve "$1")" ;;
+        bundle)   require_docker; local sp="$1"; shift; local f="${1:?bundle: need <spec> <file.zip>}"; shift; bundle_import "$(catalog_resolve "$sp")" "$f" "$@" ;;
         seed)     require_docker; local sp="$1"; shift; seed_instance "$(catalog_resolve "$sp")" "$@" ;;
         snapshot) require_docker; cmd_snapshot "$@" ;;
         restore)  require_docker; cmd_restore "$@" ;;

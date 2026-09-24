@@ -78,7 +78,10 @@ stays correct even if the repo moves.
 Cost: `make install` must be re-run after editing anything under `skills/`. The
 Makefile target says so, and it is idempotent.
 
-## K7. Java 8 recipe against late 12.x — thinly evidenced
+## K7. Java 8 recipe against late 12.x — RESOLVED 2026-09-23
+
+12.6.7 was built from this recipe and boots, licenses and provisions; 12.4.2 was
+built the same way. The original reasoning is kept below.
 
 The 11.x-12.x era uses `java-1.8.0-openjdk` and `python36`. Evidence it works for
 late 12.x is that Dataiku built the `12.6.4` Hub image from that recipe in July
@@ -160,3 +163,19 @@ DSS bug rather than an expiry.
 
 **Implemented 2026-09-03.** `provision` skips expired candidates with a warning
 and refuses outright if every one has lapsed. Below 30 days it warns.
+
+## K14. A mismatched Puppeteer pin made first boot take 11 minutes — RESOLVED
+
+On first boot `run.sh` runs the kit's `install-graphics-export`, which chooses a
+Puppeteer version from the image's Node.js version, in a table that differs
+between kits. The image pre-installed an era-wide pin (13.7.0 for 11.x and 12.x);
+12.5.2's kit wants 21.3.6, so npm re-downloaded Puppeteer and Chromium under
+emulation: `added 71 packages ... in 10m`, and a 650s first boot. It is
+reproducible, and nothing failed — `provision` simply took eleven minutes.
+
+Fixed 2026-09-23: `docker/kit-puppeteer.sh` evaluates the kit's own selection
+block against the image's Node during the build, and the Dockerfile pre-installs
+that version, keeping the era pin only as a fallback. 12.5.2 then booted in 35s.
+The risk is any kit whose selection block is not recognised: it falls back to the
+era pin and can be slow on first boot again, which is worth checking if a version
+takes minutes to first answer.

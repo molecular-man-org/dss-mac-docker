@@ -14,17 +14,20 @@ See [LICENCES.md](LICENCES.md) for what each tier is.
 
 | DSS | 2024 | 2025 (all three) | 2018 |
 | --- | --- | --- | --- |
+| 11.0.0 | accepted | **rejected (400)** | accepted |
 | 11.2.0 | accepted | **rejected (400)** | accepted |
+| 11.4.5 | accepted | **rejected (400)** | accepted |
 | 12.4.2 | accepted | **rejected (400)** | accepted |
+| 12.5.2 | accepted | **rejected (400)** | accepted |
+| 12.6.0 | accepted | accepted | accepted |
 | 12.6.4 | accepted | accepted | accepted |
 | 13.4.4 | accepted | accepted | accepted |
 | 14.7.0 | accepted | accepted | accepted |
 | 15.0.0 | accepted | accepted | accepted |
 
-The 2025 tiers first work at some version between 12.4.2 and 12.6.4, consistent
-with the documented 12.6.0 floor. 12.6.0 itself has not been booted, so the exact
-boundary is taken from that floor rather than measured. `provision` skips the
-2025 tier below 12.6.0.
+The 2025 tiers first work at **12.6.0**: 12.5.2 (the newest 12.5.x) rejects them
+and 12.6.0 accepts them, so the boundary is measured, and it matches the
+documented floor. `provision` skips the 2025 tier below 12.6.0.
 
 Under the 2025 tiers `FULL_DESIGNER` is offered on every version that accepts
 them; under 2024, `DESIGNER`.
@@ -35,17 +38,49 @@ them; under 2024, `DESIGNER`.
 
 | DSS | Source | Notes |
 | --- | --- | --- |
+| 11.0.0 | built from kit | the bottom of the range; 176s from nothing to licensed, build included |
 | 11.2.0 | Hub image | ready in ~20s on a warm start |
+| 11.4.5 | built from kit | 180s from nothing, build included |
 | 12.4.2 | built from kit | ~35s |
+| 12.5.2 | built from kit | first boot was **650s** until the Puppeteer fix below; 35s since |
+| 12.6.0 | built from kit | 207s from nothing, build included |
 | 12.6.4 | Hub image | |
 | 12.6.7 | built from kit | |
 | 13.4.4 | Hub image | reached by upgrade from 12.6.4 |
 | 13.5.7 | built from kit | |
 | 14.7.0 | Hub image | reached by upgrade from 13.4.4 |
 | 14.7.3 | built from kit | |
+| 14.4.1 | Hub image | cold pull and first boot in 143s; a second `up` is a 1s no-op |
 | 15.0.0 | Hub image | reached by upgrade from 14.7.0 |
 
-Not run: any version other than those above, and 11.0.0 to 11.1.x in particular.
+Times are wall-clock under Rosetta on one machine and vary with load. The
+catalogue has 109 versions; the ones above are what has been run, and any other
+version is expected to behave like its neighbour but is not measured.
+
+### A first-boot slowdown, found and fixed
+
+12.5.2 took 650s to first answer, twice, while every other built version took
+under a minute. The container log showed why: on first boot `run.sh` runs the
+kit's `install-graphics-export`, which picks a Puppeteer version from the Node.js
+version (`added 71 packages ... in 10m`). The image had pre-installed a different,
+era-wide pin, so npm re-downloaded Puppeteer and Chromium under emulation. The
+build now asks the kit which version it will want (`docker/kit-puppeteer.sh`) and
+pre-installs that. 12.5.2 then booted in 35s, and a control rebuild of 12.6.0 was
+unchanged (207s against 234s). See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) K14.
+
+## Memory
+
+Idle memory three minutes after the backend answered, one node at a time on the
+10 GB Docker VM. DSS already caps its JVM heaps at 2 GiB each (DESIGN D7).
+
+| DSS | Idle memory |
+| --- | --- |
+| 12.6.4 | 1.9 GiB |
+| 13.4.4 | 1.9 GiB |
+| 14.7.0 | 2.5 GiB |
+| 15.0.0 | 2.4 GiB |
+
+An idle node only: jobs, recipes and ML will use more, and that is not measured.
 
 ## Upgrade paths
 
@@ -62,6 +97,13 @@ after every hop:
 Each source node was left stopped and untouched. The marker is a bare project,
 not a realistic one: this shows the datadir migrates and survives, not that any
 particular flow, recipe or code environment does.
+
+## Importing a project export
+
+`dss-lab bundle` imports a project export archive. A bare project (no datasets or
+recipes) exported from 15.0.0 imported into 12.6.4, with a warning about plugins
+the archive expects, and one exported from 12.6.4 imported into 14.7.0. Realistic
+projects are not yet measured.
 
 ## Snapshots
 
@@ -80,7 +122,7 @@ productive profile and reads it back. Observed on 11.2.0, 12.6.4, 13.4.4 and
 
 ## Not yet covered
 
-- Memory profile per era, and running several versions at once.
+- Running several versions at once, and memory under load.
 - Realistic content: upgrades of a project with flows, recipes and code envs
   (see [SEEDING.md](SEEDING.md)).
 - Versions other than those listed above.

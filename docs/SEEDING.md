@@ -150,6 +150,21 @@ Next step: find how the SDK constructs a plugin-recipe creation body — the
 installed client has no `CustomCode` references, so it is likely elsewhere in
 the SDK or only in the UI's own calls.
 
+## Importing a project export
+
+`dss-lab bundle <spec> <file.zip>` imports a DSS project export archive (from the
+UI's Export button or `dsscli project-export`) into a running instance, by way of
+`dsscli project-import`. `--project-key KEY` imports under a different key and
+`--remap-connection OLD=NEW` remaps a connection. The archive is validated first
+(it must carry `export-manifest.json` or `project_config/params.json`), and the
+copy placed in the container is removed whether or not the import succeeds.
+
+Observed (a bare project; see the [matrix](compatibility-matrix.md)): a project
+exported from 15.0.0 imports into 12.6.4, with a warning listing the plugins the
+archive expects. Whether a *realistic* project — flows, recipes, code envs —
+crosses versions the same way is not yet measured. `tools/seed_zip_inspect.py`
+shows what an archive contains before you import it.
+
 ## How it works
 
 `seed/dss_seed.py` talks to the DSS public API over HTTP basic auth (API key as

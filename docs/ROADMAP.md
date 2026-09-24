@@ -1,8 +1,8 @@
 # Roadmap
 
-Six phases. Phase 2 is the first point where the tool is usable at all; phase 3
-unlocks the ~95 versions that are not on Docker Hub; **phase 4 is the point of
-the repo** — the machine-to-machine provisioning contract the sibling
+Eight phases. Phase 2 is the first point where the tool is usable at all;
+phase 3 unlocks the ~95 versions that are not on Docker Hub; **phase 4 is the
+point of the repo** — the machine-to-machine provisioning contract the sibling
 upgrade-planning project depends on.
 
 Status legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified
@@ -37,15 +37,18 @@ Also delivered: `dss-lab info <spec>` (everything derived from a version) and
       guard in the same change**
 - [x] `ls`, `stop`, `logs`, `shell`, `url`, `rm`, `gc`
 - [x] `wait` — HTTP readiness poll, long first-boot timeout
-- [ ] Memory profile written to `env-site.sh` at first boot; **measure the right
-      heap on a live instance rather than guessing** (DESIGN D7)
+- [x] Memory profile — **measured and deliberately not implemented** (DESIGN D7):
+      idle 1.9-2.5 GiB from 12.x to 15.x, and DSS's own JVM heaps are already
+      capped at 2 GiB, so there is nothing to tune
 - [x] `skills/{start,stop}-dss-container/SKILL.md`, `skills/list-dss-containers/SKILL.md`
 - [x] `Makefile` `install` / `uninstall` targets; K6 resolved by copy+substitute
 - [x] Verified against Hub's `12.6.4` (Tim's chosen example) — booted in ~50s,
       HTTP 200, supervisord backend/ipython/nginx all RUNNING
 
-> Exit criterion: `/start-dss-container 14.4.1` works from a cold start, and
-> running it twice is a no-op that returns the URL.
+> Exit criterion **met, 2026-09-23**: `14.4.1` from a cold start (image pull and
+> first boot) answered HTTP 200 in 143s; a second `up` returned in 1s with "already
+> running", the same URL and still one container. Run through `dss-lab up`, which
+> the `start-dss-container` skill wraps.
 
 ## Phase 3 — All 109 versions `[x] complete 2026-09-03`
 
@@ -53,15 +56,20 @@ Also delivered: `dss-lab info <spec>` (everything derived from a version) and
       Deriving from a Hub era base means the era only selects `BASE_IMAGE` and
       `PUPPETEER_VERSION`, so per-era files are needed solely for a
       from-scratch build. ARG is declared below the base, fixing RESEARCH §8.
-- [ ] `docker/Dockerfile.dss11-12`, `.dss13`, `.dss14-15` — only for
-      `--era-base scratch`; deferred until something actually needs it
-- [ ] `build <version>` with era detection and era-base resolution (DESIGN D3)
-- [ ] `--era-base scratch` clean-build option (deferred; nothing needs it yet)
+- [x] `docker/Dockerfile.dss11-12`, `.dss13`, `.dss14-15` — **decided against**:
+      they exist only for `--era-base scratch`, which is below
+- [x] `build <version>` with era detection and era-base resolution (DESIGN D3)
+- [x] `--era-base scratch` — **decided against, 2026-09-23.** A from-scratch build
+      costs about an hour of emulated R compilation per era, nothing needs it,
+      and it could not be verified without those hours. Building on the nearest
+      Hub image reaches every catalogue version (DESIGN D3). The flag stays
+      rejected with an explanation. Reopen only if Hub stops publishing bases.
 - [x] Verified on `12.6.7` — builds, boots in 35s, reports
       `product_version: 12.6.7`, and licenses + provisions identically to a
       pulled image ([finding](findings/built-image-verified.md))
-- [ ] Still to verify per era: `13.5.7` and `14.7.3` (14.x/15.x untested;
-      also resolves K7 for late 12.x)
+- [x] Verified per era by build: `12.4.2`, `13.5.7` and `14.7.3` boot, license and
+      provision; 15.x runs from its Hub image ([matrix](compatibility-matrix.md)).
+      This also resolves K7 for late 12.x.
 
 ## Phase 4 — Provisioning (the point of the repo) `[x] complete 2026-09-03`
 
@@ -83,7 +91,7 @@ the sibling project depends on it.
 > by nickname alone —
 > [finding](findings/provisioning-flow-verified.md).
 
-## Phase 5 — Upgrade paths
+## Phase 5 — Upgrade paths `[x] complete 2026-09-23`
 
 - [x] `snapshot` / `restore` — volume clone; `restore` demands `--force`
 - [x] `upgrade <from> <to>` — clones the datadir and lets `run.sh` migrate the
@@ -91,9 +99,10 @@ the sibling project depends on it.
 - [x] Verified on real migrations 12.6.4 → 13.4.4 → 14.7.0 → 15.0.0
       ([matrix](compatibility-matrix.md))
 
-## Phase 6 — Evidence
+## Phase 6 — Evidence `[x] complete 2026-09-23`
 
-- [ ] `bundle <version> <file>` — preload a project bundle
+- [x] `bundle <version> <file.zip>` — imports a project export archive; verified
+      live, including newer-into-older (15.0.0 archive into 12.6.4)
 - [x] `docs/compatibility-matrix.md` — licence tiers, boot and upgrade results
       measured on real containers; first pass, boundaries and every era
 

@@ -17,8 +17,24 @@ All notable changes to this project are documented here.
 - `docs/compatibility-matrix.md` — measured licence, boot and upgrade results.
 - GitHub Actions CI: the test suite (macOS and Linux), shellcheck, markdownlint.
 
+- **`bundle <spec> <file.zip>`** — imports a DSS project export archive into a
+  running instance (`--project-key`, `--remap-connection`). Verified live in both
+  directions across versions. The archive is validated first, and the copy in the
+  container is removed even when the import fails.
+
+### Fixed
+
+- **First boot of some built versions took 11 minutes** (12.5.2 measured). The
+  image pre-installed an era-wide Puppeteer pin, but the kit picks its own from
+  the Node.js version, so first boot re-downloaded Puppeteer and Chromium. The
+  build now asks the kit (`docker/kit-puppeteer.sh`); 12.5.2 boots in 35s.
+
 ### Changed
 
+- The README now lists the commands, the full docs set and the real layout.
+- Phase 2, 3 and 6 of the roadmap are closed. The memory profile is measured and
+  deliberately not implemented (idle 1.9-2.5 GiB from 12.x to 15.x); from-scratch
+  builds (`--era-base scratch`) are decided against.
 - Prepared for public release: Apache-2.0 `LICENSE` added; the licence folder now
   defaults to `~/.dataiku/licenses` (set `DSS_LAB_LICENSE_DIR` to use
   another); personal identifiers and internal hostnames removed from docs and

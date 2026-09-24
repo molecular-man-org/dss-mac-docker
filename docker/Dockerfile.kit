@@ -33,6 +33,11 @@ ARG KIT_BASE_URL=https://cdn.downloads.dataiku.com/public/studio
 USER dataiku
 WORKDIR /home/dataiku
 
+# Asks the kit which Puppeteer it will want at first boot (see the script). An
+# era-wide pin is wrong for some kits, and a mismatch costs ~11 minutes of
+# Chromium download under emulation on the first boot.
+COPY --chmod=755 docker/kit-puppeteer.sh /tmp/kit-puppeteer.sh
+
 RUN set -eu; \
     DSSKIT="dataiku-dss-${DSS_VERSION_ARG}"; \
     echo "+ downloading ${DSSKIT}"; \
@@ -42,8 +47,11 @@ RUN set -eu; \
     rm "${DSSKIT}.tar.gz"; \
     "${DSSKIT}"/scripts/install/installdir-postinstall.sh "${DSSKIT}"; \
     if [ -d "${DSSKIT}/resources/graphics-export" ]; then \
+        PUP="$(/tmp/kit-puppeteer.sh "${DSSKIT}/scripts/_install-graphics-export.sh")"; \
+        if [ -n "${PUP}" ]; then echo "+ kit selects puppeteer ${PUP}"; \
+        else PUP="${PUPPETEER_VERSION}"; echo "+ kit selection not recognised; using era pin ${PUP}"; fi; \
         cd "${DSSKIT}/resources/graphics-export" && \
-        npm install "puppeteer@${PUPPETEER_VERSION}" fs || \
+        npm install "puppeteer@${PUP}" fs || \
         echo "! graphics-export install failed; DSS will run without chart export"; \
     fi
 

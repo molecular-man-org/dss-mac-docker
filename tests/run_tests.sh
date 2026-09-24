@@ -19,6 +19,8 @@ NO_COLOR=1; export NO_COLOR
 . "$ROOT/bin/lib/provision.sh"
 # shellcheck source=../bin/lib/snapshot.sh
 . "$ROOT/bin/lib/snapshot.sh"
+# shellcheck source=../bin/lib/bundle.sh
+. "$ROOT/bin/lib/bundle.sh"
 
 PASS=0; FAIL=0
 
@@ -262,6 +264,71 @@ else bad "K12: clobbered a config it could not parse"; fi
 rm -rf "$CFGTMP"
 
 # ------------------------------------------------- snapshots and upgrades --
+section "kit-puppeteer.sh evaluates the kit's own selection block"
+KP=$(mktemp -d); mkdir -p "$KP/bin"
+printf '#!/bin/sh\necho "$FAKE_NODE"\n' > "$KP/bin/node"; chmod +x "$KP/bin/node"
+cat > "$KP/kit.sh" <<'KITEOF'
+echo "[+] before the block"
+node_version=$(node -v)
+node_version=${node_version:1}
+echo "+ Detected Node.js version ${node_version}"
+IFS='.' read -r -a node_version_components <<< "${node_version}"
+node_version_major=$((${node_version_components[0]}))
+if [ $node_version_major -lt 10 ]; then
+  echo "[-] unsupported"; exit 1
+elif [ $node_version_major -lt 14 ]; then
+  puppeteer_version="13.7.0"
+elif [ $node_version_major -lt 16 ]; then
+  puppeteer_version="19.11.1"
+else
+  puppeteer_version="21.3.6"
+fi
+echo "+ Installing Puppeteer ${puppeteer_version}"
+touch "$KP_SENTINEL"
+npm install puppeteer@${puppeteer_version} fs
+KITEOF
+kp() { PATH="$KP/bin:$PATH" FAKE_NODE="$1" KP_SENTINEL="$KP/ran" "$ROOT/docker/kit-puppeteer.sh" "${2:-$KP/kit.sh}"; }
+assert_eq "node 20 -> newest"        "21.3.6" "$(kp v20.12.2)"
+assert_eq "node 12 -> oldest"        "13.7.0" "$(kp v12.0.0)"
+assert_eq "node 15 -> middle"        "19.11.1" "$(kp v15.1.0)"
+assert_eq "unsupported node -> nothing" "" "$(kp v9.0.0)"
+assert_eq "missing script -> nothing"   "" "$(kp v20.0.0 "$KP/absent.sh")"
+echo "no selection block here" > "$KP/other.sh"
+assert_eq "unrecognised script -> nothing" "" "$(kp v20.0.0 "$KP/other.sh")"
+# Only the selection block may run: the touch and npm after it must not.
+if [ -e "$KP/ran" ]; then bad "kit-puppeteer.sh ran code beyond the selection block"; else ok; fi
+rm -rf "$KP"
+# The Dockerfile must use it, with the era pin only as a fallback.
+if grep -q 'kit-puppeteer.sh' "$ROOT/docker/Dockerfile.kit" && grep -q 'puppeteer@${PUP}' "$ROOT/docker/Dockerfile.kit"; then ok
+else bad "Dockerfile.kit must install the puppeteer version the kit selects"; fi
+
+section "bundle validation"
+BT=$(mktemp -d)
+python3 - "$BT" <<'PYEOF'
+import sys, zipfile
+d = sys.argv[1]
+with zipfile.ZipFile(d + "/good.zip", "w") as z: z.writestr("export-manifest.json", "{}")
+with zipfile.ZipFile(d + "/good2.zip", "w") as z: z.writestr("project_config/params.json", "{}")
+with zipfile.ZipFile(d + "/rootjson.zip", "w") as z: z.writestr("project.json", "{}")
+with zipfile.ZipFile(d + "/noproject.zip", "w") as z: z.writestr("readme.txt", "x")
+open(d + "/notzip.zip", "w").write("this is not a zip")
+PYEOF
+assert_true  "project export accepted"     bundle_validate "$BT/good.zip"
+assert_true  "params.json marker accepted" bundle_validate "$BT/good2.zip"
+assert_false "zip without a marker"        bundle_validate "$BT/noproject.zip"
+assert_false "a root project.json is not a marker" bundle_validate "$BT/rootjson.zip"
+assert_false "not a zip"                   bundle_validate "$BT/notzip.zip"
+assert_false "missing file"                bundle_validate "$BT/absent.zip"
+assert_true  "remap OLD=NEW ok"            bundle_remap_valid "db_old=db_new"
+for r in "" "nothing" "=new" "old=" "a=b=c"; do assert_false "remap bad '$r'" bundle_remap_valid "$r"; done
+out=$(bundle_import 12.6.4 "$BT/good.zip" --remap-connection oops 2>&1); rc=$?
+assert_eq "bad remap rejected before docker" "1" "$rc"
+# dss-lab runs under set -e, so the import call must capture its exit code or a
+# failed import would skip the cleanup and error message (found live).
+if sed -n '/^bundle_import()/,/^}/p' "$ROOT/bin/lib/bundle.sh" | grep -q 'BUNDLE_TMP" || rc=\$?'; then ok
+else bad "bundle_import must capture dsscli's exit code with '|| rc=\$?'"; fi
+rm -rf "$BT"
+
 section "admin profile follows the licence tier (docs/LICENCES.md)"
 assert_eq "2025 -> FULL_DESIGNER"  FULL_DESIGNER  "$(admin_profile_for_licence dev-x-2025-enterprise.json)"
 assert_eq "2025 aiml"              FULL_DESIGNER  "$(admin_profile_for_licence /a/dev-x-2025-aiml.json)"

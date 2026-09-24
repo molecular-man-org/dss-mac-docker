@@ -5,7 +5,9 @@
 # the primary path, not a fallback.
 
 # era_puppeteer <era> — the puppeteer pin upstream used for that era
-# (RESEARCH.md §6). Chart export is the only thing affected.
+# (RESEARCH.md §6). Chart export is the only thing affected. Only a FALLBACK
+# now: the Dockerfile asks the kit which version it will want (kit-puppeteer.sh),
+# because an era-wide pin mismatched some kits and cost ~11 minutes on first boot.
 era_puppeteer() {
     case "$1" in
         dss11-12) printf '13.7.0' ;;
@@ -53,7 +55,7 @@ image_build() {
             --no-cache) extra="$extra --no-cache"; shift ;;
             --base)     base="$2"; shift 2 ;;
             --era-base)
-                [ "$2" = "scratch" ] && die "--era-base scratch is not implemented (see docs/ROADMAP.md phase 3)"
+                [ "$2" = "scratch" ] && die "--era-base scratch is deliberately not supported: a from-scratch build costs about an hour of emulated R compilation per era and nothing needs it (DESIGN D3)"
                 shift 2 ;;
             *) die "build: unknown option $1" ;;
         esac
