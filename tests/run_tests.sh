@@ -275,7 +275,9 @@ assert_true "unchanged re-register leaves the file identical" cmp -s "$DATAIKU_C
 ( DSS_LAB_API_KEY=OTHERKEY register_instance 12.6.4 http://localhost:11640 ) >/dev/null 2>&1
 ( DSS_LAB_API_KEY=THIRDKEY register_instance 12.6.4 http://localhost:11640 ) >/dev/null 2>&1
 assert_eq "two rapid changes make two distinct backups" "$((before + 2))" "$(bk)"
-assert_eq "backup mode is 0600" "600" "$(stat -f %Lp "$(ls "$CFGTMP"/config.json.bak-* | tail -1)" 2>/dev/null || stat -c %a "$(ls "$CFGTMP"/config.json.bak-* | tail -1)")"
+# python3 for the mode: `stat` flags differ between BSD and GNU (`-f` on Linux
+# means filesystem status and exits 0 with junk, defeating any || fallback).
+assert_eq "backup mode is 0600" "600" "$(python3 -c 'import glob,os,sys;f=sorted(glob.glob(sys.argv[1]+"/config.json.bak-*"))[-1];print(oct(os.stat(f).st_mode&0o777)[2:])' "$CFGTMP")"
 
 for i in $(seq 1 12); do echo "{\"n\":$i}" > "$CFGTMP/$(printf "config.json.bak-202001%02dT0000%02d" "$i" "$i")"; done
 echo keep > "$CFGTMP/config.json.bak-notes"; echo keep > "$CFGTMP/config.json.old"
