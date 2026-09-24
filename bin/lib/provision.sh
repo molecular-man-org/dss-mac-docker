@@ -304,25 +304,40 @@ print(d.get('key',''))
 # ~/.dataiku/config.json holds the user's live production credentials
 # (KNOWN_ISSUES K12). Read-modify-write, back up first, write atomically, touch
 # only our own entry, and never change default_instance.
+#
+# Backups are copies of a credentials file, so they are kept few: one is made only
+# when the write actually changes the file, and only the oldest (the pristine
+# state from before this tool first wrote) and the newest DSS_LAB_KEEP_BACKUPS
+# (default 5) are retained.
 register_instance() {
     local v="$1" url="$2" nick
     nick=$(container_name "$v")
 
     mkdir -p "$(dirname "$DATAIKU_CONFIG")"
-    if [ -f "$DATAIKU_CONFIG" ]; then
-        local backup
-        backup="$DATAIKU_CONFIG.bak-$(date +%Y%m%dT%H%M%S)"
-        cp "$DATAIKU_CONFIG" "$backup" || die "could not back up $DATAIKU_CONFIG"
-        log_dim "backed up config to $(basename "$backup")" >&2
-    fi
 
     DSS_LAB_NICK="$nick" DSS_LAB_URL="$url" DSS_LAB_CFG="$DATAIKU_CONFIG" \
+    DSS_LAB_KEEP="${DSS_LAB_KEEP_BACKUPS:-5}" \
     DSS_LAB_DESC="DSS $v (dss-mac-docker)" python3 <<'PY' || die "failed to register instance"
-import json, os, sys, tempfile
+import copy, datetime, glob, json, os, re, shutil, sys, tempfile
 
 cfg_path = os.environ['DSS_LAB_CFG']
 nick, url = os.environ['DSS_LAB_NICK'], os.environ['DSS_LAB_URL']
 key, desc = os.environ['DSS_LAB_API_KEY'], os.environ['DSS_LAB_DESC']
+try:
+    keep = max(1, int(os.environ.get('DSS_LAB_KEEP', '5')))
+except ValueError:
+    keep = 5
+
+BACKUP_RE = re.compile(r'\.bak-\d{8}T\d{6}(-\d+)?$')
+
+def prune_backups():
+    """Keep the oldest backup and the newest `keep`; touch nothing else."""
+    names = sorted(p for p in glob.glob(glob.escape(cfg_path) + '.bak-*')
+                   if BACKUP_RE.search(p))
+    if len(names) <= keep + 1:
+        return
+    for p in names[1:len(names) - keep]:
+        os.unlink(p)
 
 cfg = {}
 if os.path.exists(cfg_path):
@@ -334,6 +349,7 @@ if os.path.exists(cfg_path):
             print(f"refusing to rewrite unparseable {cfg_path}: {e}", file=sys.stderr)
             sys.exit(1)
 
+original = copy.deepcopy(cfg)
 before = set((cfg.get('dss_instances') or {}).keys())
 cfg.setdefault('dss_instances', {})[nick] = {
     'url': url, 'api_key': key, 'no_check_certificate': False, 'description': desc,
@@ -346,6 +362,22 @@ if lost:
     print(f"refusing to write: would drop instances {sorted(lost)}", file=sys.stderr)
     sys.exit(1)
 
+if os.path.exists(cfg_path) and cfg == original:
+    # Nothing to change: no backup, no rewrite.
+    prune_backups()
+    print(f"'{nick}' already registered; config unchanged", file=sys.stderr)
+    sys.exit(0)
+
+if os.path.exists(cfg_path):
+    stamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
+    backup, n = f"{cfg_path}.bak-{stamp}", 0
+    while os.path.exists(backup):        # never overwrite an earlier backup
+        n += 1
+        backup = f"{cfg_path}.bak-{stamp}-{n}"
+    shutil.copy2(cfg_path, backup)
+    os.chmod(backup, 0o600)
+    print(f"backed up config to {os.path.basename(backup)}", file=sys.stderr)
+
 d = os.path.dirname(cfg_path) or '.'
 fd, tmp = tempfile.mkstemp(dir=d, prefix='.config.json.')
 try:
@@ -357,6 +389,7 @@ try:
 except Exception:
     os.path.exists(tmp) and os.unlink(tmp)
     raise
+prune_backups()
 print(f"registered '{nick}' ({len(after)} instances in config)", file=sys.stderr)
 PY
     printf '%s' "$nick"

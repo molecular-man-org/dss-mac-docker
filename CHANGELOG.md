@@ -24,6 +24,11 @@ All notable changes to this project are documented here.
 
 ### Fixed
 
+- **`~/.dataiku/config.json` backups no longer pile up.** `provision` made a full
+  copy of the credentials file on every run; now it backs up only when the write
+  changes the file, and keeps the oldest plus the newest 5
+  (`DSS_LAB_KEEP_BACKUPS`). Pruning never touches a file that is not one of our
+  own backups.
 - **First boot of some built versions took 11 minutes** (12.5.2 measured). The
   image pre-installed an era-wide Puppeteer pin, but the kit picks its own from
   the Node.js version, so first boot re-downloaded Puppeteer and Chromium. The

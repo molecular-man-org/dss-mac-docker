@@ -256,6 +256,36 @@ PYCHK
 if [ $? -eq 0 ]; then ok; else bad "K12: merge altered or dropped existing instances"; fi
 assert_true "a backup was written" sh -c "ls '$CFGTMP'/config.json.bak-* >/dev/null 2>&1"
 
+section "config backups stay bounded (K12)"
+# Backups are copies of a credentials file. Re-registering an unchanged entry must
+# not make one; the pristine oldest one must survive pruning; nothing that is not
+# a dss-lab backup may ever be deleted.
+bk() {
+    local f n=0
+    for f in "$CFGTMP"/config.json.bak-*; do
+        case "$f" in *.bak-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]|*.bak-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]-*) n=$((n+1)) ;; esac
+    done
+    echo "$n"
+}
+before=$(bk)
+cp "$DATAIKU_CONFIG" "$CFGTMP/snapshot.json"
+( DSS_LAB_API_KEY=NEWKEY register_instance 12.6.4 http://localhost:11640 ) >/dev/null 2>&1
+assert_eq "unchanged re-register makes no backup" "$before" "$(bk)"
+assert_true "unchanged re-register leaves the file identical" cmp -s "$DATAIKU_CONFIG" "$CFGTMP/snapshot.json"
+( DSS_LAB_API_KEY=OTHERKEY register_instance 12.6.4 http://localhost:11640 ) >/dev/null 2>&1
+( DSS_LAB_API_KEY=THIRDKEY register_instance 12.6.4 http://localhost:11640 ) >/dev/null 2>&1
+assert_eq "two rapid changes make two distinct backups" "$((before + 2))" "$(bk)"
+assert_eq "backup mode is 0600" "600" "$(stat -f %Lp "$(ls "$CFGTMP"/config.json.bak-* | tail -1)" 2>/dev/null || stat -c %a "$(ls "$CFGTMP"/config.json.bak-* | tail -1)")"
+
+for i in $(seq 1 12); do echo "{\"n\":$i}" > "$CFGTMP/$(printf "config.json.bak-202001%02dT0000%02d" "$i" "$i")"; done
+echo keep > "$CFGTMP/config.json.bak-notes"; echo keep > "$CFGTMP/config.json.old"
+( DSS_LAB_KEEP_BACKUPS=3 DSS_LAB_API_KEY=FOURTHKEY register_instance 12.6.4 http://localhost:11640 ) >/dev/null 2>&1
+assert_eq "pruned to the oldest plus the newest 3" "4" "$(bk)"
+assert_true "the pristine oldest backup survives" test -f "$CFGTMP/config.json.bak-20200101T000001"
+assert_true "a file that is not a dss-lab backup is never deleted" test -f "$CFGTMP/config.json.bak-notes"
+assert_true "an unrelated file is never deleted" test -f "$CFGTMP/config.json.old"
+assert_true "the config itself is intact" grep -q FOURTHKEY "$DATAIKU_CONFIG"
+
 section "register_instance refuses to overwrite an unparseable config (K12)"
 printf 'this is not json{{{' > "$DATAIKU_CONFIG"
 ( DSS_LAB_API_KEY=NEWKEY register_instance 12.6.4 http://localhost:11640 ) >/dev/null 2>&1

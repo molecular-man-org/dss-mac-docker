@@ -155,6 +155,13 @@ not parse, refuses to write if any existing instance name would disappear,
 writes atomically at mode `0600`, and never touches `default_instance`. Both
 protections are mutation-tested in `tests/run_tests.sh`.
 
+**Backups are bounded (2026-09-24).** Each backup is a copy of a credentials
+file, and `provision` used to make one on every run, changed or not: 30 piled up
+in a day. Now a backup is made only when the write changes the file, names never
+collide, and only the **oldest** backup (the pristine state from before this tool
+first wrote) and the newest `DSS_LAB_KEEP_BACKUPS` (default 5) are kept. Only
+files named like our own backups are ever removed.
+
 ## K13. Licences expire
 
 Licence files carry an `expiresOn`. When the ones you supply lapse,
