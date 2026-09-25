@@ -139,6 +139,7 @@ current datadir and refuses to run without `--force`.
 | [RESEARCH.md](docs/RESEARCH.md) | Verified findings, with how each was checked |
 | [SEEDING.md](docs/SEEDING.md) | Putting content on a provisioned instance |
 | [ROADMAP.md](docs/ROADMAP.md) | Phases with exit criteria |
+| [RELEASE_PLAN.md](docs/RELEASE_PLAN.md) | What remains before a public release |
 | [HANDOFF.md](docs/HANDOFF.md) | Working notes for picking the project up |
 | [findings/](docs/findings) | One note per verified fact, with its evidence |
 
